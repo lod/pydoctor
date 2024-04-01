@@ -880,6 +880,7 @@ class Attribute(Inheritable):
 # Work around the attributes of the same name within the System class.
 _ModuleT = Module
 _PackageT = Package
+_AttributeT = Attribute
 
 T = TypeVar('T')
 
@@ -1124,7 +1125,7 @@ class System:
                     DocumentableKind.TYPE_VARIABLE, 
                     DocumentableKind.TYPE_ALIAS))
         
-    def showAttrValue(self, ob: Attribute) -> AttributeValueDisplay:
+    def showAttrValue(self, ob: _AttributeT) -> AttributeValueDisplay:
         """
         Whether to display the value of the given attribute.
         """

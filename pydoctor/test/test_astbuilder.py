@@ -2154,6 +2154,7 @@ def test_type_alias_definition(systemcls: Type[model.System]) -> None:
     attr = mod.contents['One']
     assert isinstance(attr, model.Attribute)
     assert attr.kind == model.DocumentableKind.TYPE_ALIAS
+    assert attr.value
     assert unparse(attr.value).strip() == "t.Literal['1', 1]"
 
 
