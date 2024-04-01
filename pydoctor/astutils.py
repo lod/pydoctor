@@ -189,20 +189,20 @@ def is_using_typing_classvar(expr: Optional[ast.AST],
     return is_using_annotations(expr, ('typing.ClassVar', "typing_extensions.ClassVar"), ctx)
 
 def is_using_annotations(expr: Optional[ast.AST], 
-                            annotations:Sequence[str], 
+                            annotations: Collection[str], 
                             ctx:'model.Documentable') -> bool:
     """
     Detect if this expr is firstly composed by one of the specified annotation(s)' full name.
     """
-    full_name = node2fullname(expr, ctx)
-    if full_name in annotations:
+    full_name, dotted_name = node2fullname(expr, ctx), '.'.join(node2dottedname(expr))
+    if full_name in annotations or dotted_name in annotations:
         return True
     if isinstance(expr, ast.Subscript):
         # Final[...] or typing.Final[...] expressions
         if isinstance(expr.value, (ast.Name, ast.Attribute)):
             value = expr.value
-            full_name = node2fullname(value, ctx)
-            if full_name in annotations:
+            full_name, dotted_name = node2fullname(value, ctx), '.'.join(node2dottedname(value))
+            if full_name in annotations or dotted_name in annotations:
                 return True
     return False
 
