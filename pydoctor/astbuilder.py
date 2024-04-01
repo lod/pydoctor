@@ -766,6 +766,14 @@ class ModuleVistor(NodeVisitor):
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         annotation = unstring_annotation(node.annotation, self.builder.current)
         self._handleAssignment(node.target, annotation, node.value, node.lineno)
+
+    def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
+        if isinstance(node.name, ast.Name):
+            annotation = ast.Attribute(
+                value=ast.Name(id='typing', ctx=ast.Load()),
+                attr='TypeAlias',
+                ctx=ast.Load())
+            self._handleAssignment(node.name, annotation, node.value, node.lineno)
     
     def visit_AugAssign(self, node:ast.AugAssign) -> None:
         self._handleAssignment(node.target, None, node.value, 

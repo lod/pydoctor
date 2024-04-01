@@ -6,6 +6,7 @@ from pydoctor import astbuilder, astutils, model
 from pydoctor import epydoc2stan
 from pydoctor.epydoc.markup import DocstringLinker, ParsedDocstring
 from pydoctor.options import Options
+from pydoctor.astutils import unparse
 from pydoctor.stanutils import flatten, html2stan, flatten_text
 from pydoctor.epydoc.markup.epytext import Element, ParsedEpytextDocstring
 from pydoctor.epydoc2stan import format_summary, get_parsed_type
@@ -2141,6 +2142,20 @@ def test_type_alias(systemcls: Type[model.System]) -> None:
     # Type variables in instance variables are not recognized
     assert mod.contents['F'].contents['Pouet'].kind == model.DocumentableKind.INSTANCE_VARIABLE
     assert mod.contents['F'].contents['Q'].kind == model.DocumentableKind.INSTANCE_VARIABLE
+
+@pytest.mark.skipif(sys.version_info < (3,12), reason='Type variable introduced in Python 3.12')
+@systemcls_param
+def test_type_alias_definition(systemcls: Type[model.System]) -> None:
+    src = '''
+    import typing as t
+    type One = t.Literal['1', 1]
+    '''
+    mod = fromText(src, systemcls=systemcls)
+    attr = mod.contents['One']
+    assert isinstance(attr, model.Attribute)
+    assert attr.kind == model.DocumentableKind.TYPE_ALIAS
+    assert unparse(attr.value).strip() == "t.Literal['1', 1]"
+
 
 @systemcls_param
 def test_typevartuple(systemcls: Type[model.System]) -> None:

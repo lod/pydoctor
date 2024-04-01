@@ -65,6 +65,12 @@ class LineFromAst(int):
 class LineFromDocstringField(int):
     "Simple L{int} wrapper for linenumbers coming from docstrings."
 
+class AttributeValueDisplay(Enum):
+    HIDDEN = 0
+    AS_CODE_BLOCK = 1
+    # Not used yet. Default values of Attrs-like classes' attributes will one day (and maybe others).
+    #INLINE = 2
+
 class DocLocation(Enum):
     OWN_PAGE = 1
     PARENT_PAGE = 2
@@ -906,7 +912,7 @@ _default_extensions = object()
 class System:
     """A collection of related documentable objects.
 
-    PyDoctor documents collections of objects, often the contents of a
+    Pydoctor documents collections of objects, often the contents of a
     package.
     """
 
@@ -926,13 +932,6 @@ class System:
     custom_extensions: List[str] = []
     """
     Additional list of extensions to load alongside default extensions.
-    """
-
-    show_attr_value = (DocumentableKind.CONSTANT, 
-                       DocumentableKind.TYPE_VARIABLE, 
-                       DocumentableKind.TYPE_ALIAS)
-    """
-    What kind of attributes we should display the value for?
     """
 
     def __init__(self, options: Optional['Options'] = None):
@@ -1119,6 +1118,21 @@ class System:
         for o in self.allobjects.values():
             if isinstance(o, cls):
                 yield o
+
+    # What kind of attributes we should pydoctor display the value for?
+    _show_attr_value = set((DocumentableKind.CONSTANT, 
+                    DocumentableKind.TYPE_VARIABLE, 
+                    DocumentableKind.TYPE_ALIAS))
+        
+    def showAttrValue(self, ob: Attribute) -> AttributeValueDisplay:
+        """
+        Whether to display the value of the given attribute.
+        """
+
+        if ob.kind not in self._show_attr_value or ob.value is None:
+            return AttributeValueDisplay.HIDDEN
+        # Attribute is a constant/type alias (with a value), then display it's value
+        return AttributeValueDisplay.AS_CODE_BLOCK
 
     def privacyClass(self, ob: Documentable) -> PrivacyClass:
         ob_fullName = ob.fullName()
