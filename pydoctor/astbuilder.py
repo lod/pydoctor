@@ -553,18 +553,22 @@ class ModuleVistor(NodeVisitor):
             expr: Optional[ast.expr],
             lineno: int,
             augassign:Optional[ast.operator],
+            typealiasdef:bool|None=None,
             ) -> None:
         if target in MODULE_VARIABLES_META_PARSERS:
             # This is metadata, not a variable that needs to be documented,
             # and therefore doesn't need an Attribute instance.
             return
+        default_kind = (model.DocumentableKind.VARIABLE 
+                        if not typealiasdef else 
+                        model.DocumentableKind.TYPE_ALIAS)
         parent = self.builder.current
         obj = parent.contents.get(target)
         if obj is None:
             if augassign:
                 return
             obj = self.builder.addAttribute(name=target, 
-                                            kind=model.DocumentableKind.VARIABLE, 
+                                            kind=default_kind, 
                                             parent=parent)
         
         # If it's not an attribute it means that the name is already denifed as function/class 
@@ -586,7 +590,7 @@ class ModuleVistor(NodeVisitor):
         obj.setLineNumber(lineno)
         
         self._handleConstant(obj, annotation, expr, lineno, 
-                                  model.DocumentableKind.VARIABLE)
+                             defaultKind=default_kind)
         self._storeAttrValue(obj, expr, augassign)
         self._storeCurrentAttr(obj, augassign)
 
@@ -596,11 +600,14 @@ class ModuleVistor(NodeVisitor):
             expr: Optional[ast.expr],
             lineno: int,
             augassign:Optional[ast.operator],
+            typealiasdef:bool,
             ) -> None:
         module = self.builder.current
         assert isinstance(module, model.Module)
         if not _handleAliasing(module, target, expr):
-            self._handleModuleVar(target, annotation, expr, lineno, augassign=augassign)
+            self._handleModuleVar(target, annotation, expr, lineno, 
+                                  augassign=augassign, 
+                                  typealiasdef=typealiasdef)
 
     def _handleClassVar(self,
             name: str,
@@ -724,16 +731,19 @@ class ModuleVistor(NodeVisitor):
 
     def _handleAssignment(self,
             targetNode: ast.expr,
-            annotation: Optional[ast.expr],
-            expr: Optional[ast.expr],
+            annotation: ast.expr|None,
+            expr: ast.expr|None,
             lineno: int,
-            augassign:Optional[ast.operator]=None,
+            augassign:ast.operator|None=None,
+            typealiasdef:bool=False,
             ) -> None:
         if isinstance(targetNode, ast.Name):
             target = targetNode.id
             scope = self.builder.current
             if isinstance(scope, model.Module):
-                self._handleAssignmentInModule(target, annotation, expr, lineno, augassign=augassign)
+                self._handleAssignmentInModule(target, annotation, expr, lineno, 
+                                               augassign=augassign, 
+                                               typealiasdef=typealiasdef)
             elif isinstance(scope, model.Class):
                 if augassign or not self._handleOldSchoolMethodDecoration(target, expr):
                     self._handleAssignmentInClass(target, annotation, expr, lineno, augassign=augassign)
@@ -769,11 +779,8 @@ class ModuleVistor(NodeVisitor):
 
     def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
         if isinstance(node.name, ast.Name):
-            annotation = ast.Attribute(
-                value=ast.Name(id='typing', ctx=ast.Load()),
-                attr='TypeAlias',
-                ctx=ast.Load())
-            self._handleAssignment(node.name, annotation, node.value, node.lineno)
+            self._handleAssignment(node.name, None, node.value, 
+                                   node.lineno, typealiasdef=True)
     
     def visit_AugAssign(self, node:ast.AugAssign) -> None:
         self._handleAssignment(node.target, None, node.value, 
