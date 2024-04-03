@@ -491,7 +491,8 @@ def test_more_aliasing(systemcls: Type[model.System]) -> None:
     assert isinstance(D, model.Class)
     # An older version of this test expected a.A as the result.
     # Read the comment in test_aliasing() to learn why this was changed.
-    assert D.bases == ['c.C']
+    # 2024: we're back to a.A, which is a valid value.
+    assert D.bases == ['a.A']
 
 @systemcls_param
 def test_aliasing_recursion(systemcls: Type[model.System]) -> None:

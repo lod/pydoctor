@@ -1078,23 +1078,20 @@ class System:
                 self.needsnl = False
                 print('')
 
-    def objForFullName(self, fullName: str) -> Optional[Documentable]:
-        return self.allobjects.get(fullName)
-
-    def find_object(self, full_name: str) -> Optional[Documentable]:
+    def objForFullName(self, full_name: str, raise_missing:bool=False) -> Optional[Documentable]:
         """Look up an object using a potentially outdated full name.
 
-        A name can become outdated if the object is reparented:
-        L{objForFullName()} will only be able to find it under its new name,
-        but we might still have references to the old name.
+        A name can become outdated/secondary if the object is reparented:
+        L{Systel.allobjects} will only contain its new name,
+        but we should still have references to the old name.
 
         @param full_name: The fully qualified name of the object.
         @return: The object, or L{None} if the name is external (it does not
             match any of the roots of this system).
         @raise LookupError: If the object is not found, while its name does
-            match one of the roots of this system.
+            match one of the roots of this system and C{raise_missing=True}.
         """
-        obj = self.objForFullName(full_name)
+        obj = self.allobjects.get(full_name)
         if obj is not None:
             return obj
 
@@ -1103,10 +1100,16 @@ class System:
         name_parts = full_name.split('.', 1)
         for root_obj in self.rootobjects:
             if root_obj.name == name_parts[0]:
-                obj = self.objForFullName(root_obj.expandName(name_parts[1]))
+                try:
+                    obj = self.objForFullName(root_obj.expandName(name_parts[1]))
+                except RecursionError:
+                    # we have a cycle :/
+                    obj = None
                 if obj is not None:
                     return obj
-                raise LookupError(full_name)
+                if raise_missing:
+                    raise LookupError(full_name)
+                break
 
         return None
 

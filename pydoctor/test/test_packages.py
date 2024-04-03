@@ -141,21 +141,14 @@ def test_reparenting_follows_aliases() -> None:
     assert mything._localNameToFullName('MyClass') == 'reparenting_follows_aliases.main.MyClass'
     assert myotherthing._localNameToFullName('MyClass') == 'reparenting_follows_aliases._mything.MyClass'
 
-    system.find_object('reparenting_follows_aliases._mything.MyClass') == klass
+    system.objForFullName('reparenting_follows_aliases._mything.MyClass') == klass
 
-    # This part of the test cannot pass for now since we don't recursively resolve aliases.
-    # See https://github.com/twisted/pydoctor/pull/414 and https://github.com/twisted/pydoctor/issues/430
-
-    try:
-        assert system.find_object('reparenting_follows_aliases._myotherthing.MyClass') == klass
-        assert myotherthing.resolveName('MyClass') == klass
-        assert mything.resolveName('MyClass') == klass
-        assert top.resolveName('_myotherthing.MyClass') == klass
-        assert top.resolveName('_mything.MyClass') == klass
-    except (AssertionError, LookupError):
-        return
-    else:
-        raise AssertionError("Congratulation!")
+    assert myotherthing.resolveName('MyClass') == klass
+    assert mything.resolveName('MyClass') == klass
+    assert top.resolveName('_myotherthing.MyClass') == klass
+    assert top.resolveName('_mything.MyClass') == klass
+    assert system.objForFullName('reparenting_follows_aliases._myotherthing.MyClass', raise_missing=True) == klass
+        
 
 @pytest.mark.parametrize('modname', ['reparenting_crash','reparenting_crash_alt'])
 def test_reparenting_crash(modname: str) -> None:
