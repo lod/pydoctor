@@ -28,25 +28,6 @@ if TYPE_CHECKING:
     from pydoctor.templatewriter.pages.functionchild import FunctionChild
 
 
-def objects_order(o: model.Documentable) -> Tuple[int, int, str]: 
-    """
-    Function to use as the value of standard library's L{sorted} function C{key} argument
-    such that the objects are sorted by: Privacy, Kind and Name.
-
-    Example::
-
-        children = sorted((o for o in ob.contents.values() if o.isVisible),
-                      key=objects_order)
-    """
-
-    def map_kind(kind: model.DocumentableKind) -> model.DocumentableKind:
-        if kind == model.DocumentableKind.PACKAGE:
-            # packages and modules should be listed together
-            return model.DocumentableKind.MODULE
-        return kind
-
-    return (-o.privacyClass.value, -map_kind(o.kind).value if o.kind else 0, o.fullName().lower())
-
 def format_decorators(obj: Union[model.Function, model.Attribute, model.FunctionOverload]) -> Iterator["Flattenable"]:
     # Since we use this function to colorize the FunctionOverload decorators and it's not an actual Documentable subclass, we use the overload's 
     # primary function for parts that requires an interface to Documentable methods or attributes
@@ -247,6 +228,7 @@ class CommonPage(Page):
         if docgetter is None:
             docgetter = util.DocGetter()
         self.docgetter = docgetter
+        self._order = ob.system.membersOrder(ob)
 
     @property
     def page_url(self) -> str:
@@ -302,10 +284,10 @@ class CommonPage(Page):
     def _childtable_objects_order(self, 
                               v:Union[model.Documentable, Tuple[str, model.Documentable]]) -> Tuple[int, int, str]:
         if isinstance(v, model.Documentable):
-            return util.objects_order(v) 
+            return self._order(v) 
         else:
             name, o = v
-            i,j,_ = util.objects_order(o)
+            i,j,_ = self._order(o)
             return (i,j, f'{self.ob.fullName()}.{name}'.lower())
 
     def children(self) -> Sequence[Union[model.Documentable, Tuple[str, model.Documentable]]]:
@@ -331,7 +313,7 @@ class CommonPage(Page):
     def methods(self) -> Sequence[model.Documentable]:
         return sorted((o for o in self.ob.contents.values()
                        if o.documentation_location is model.DocLocation.PARENT_PAGE and o.isVisible), 
-                      key=util.objects_order)
+                      key=self._order)
 
     def childlist(self) -> List[Union["AttributeChild", "FunctionChild"]]:
         from pydoctor.templatewriter.pages.attributechild import AttributeChild
@@ -442,9 +424,9 @@ class PackagePage(ModulePage):
             return ()
 
     def methods(self) -> Sequence[model.Documentable]:
-        return [o for o in self.ob.contents.values()
+        return sorted([o for o in self.ob.contents.values()
                 if o.documentation_location is model.DocLocation.PARENT_PAGE
-                and o.isVisible]
+                and o.isVisible], key=self._order)
 
 def assembleList(
         system: model.System,
@@ -507,7 +489,7 @@ class ClassPage(CommonPage):
             self.classSignature(), ":", source
             ), class_='class-signature'))
 
-        subclasses = sorted(self.ob.subclasses, key=util.objects_order)
+        subclasses = sorted(self.ob.subclasses, key=util.alphabetical_order_func)
         if subclasses:
             p = assembleList(self.ob.system, "Known subclasses: ",
                             [o.fullName() for o in subclasses], self.page_url)
@@ -535,7 +517,7 @@ class ClassPage(CommonPage):
         return [item.clone().fillSlots(
                           baseName=self.baseName(b),
                           baseTable=ChildTable(self.docgetter, self.ob,
-                                               sorted(attrs, key=util.objects_order),
+                                               sorted(attrs, key=self._order),
                                                loader))
                 for b, attrs in baselists]
 
@@ -569,7 +551,7 @@ def get_override_info(cls:model.Class, member_name:str, page_url:Optional[str]=N
             'overrides ', tags.code(epydoc2stan.taglink(overridden, page_url)))
         break
     
-    ocs = sorted(util.overriding_subclasses(cls, member_name), key=util.objects_order)
+    ocs = sorted(util.overriding_subclasses(cls, member_name), key=util.alphabetical_order_func)
     if ocs:
         l = assembleList(cls.system, 'overridden in ',
                             [o.fullName() for o in ocs], page_url)
@@ -584,7 +566,7 @@ class ZopeInterfaceClassPage(ClassPage):
         r = super().extras()
         if self.ob.isinterface:
             namelist = [o.fullName() for o in 
-                        sorted(self.ob.implementedby_directly, key=util.objects_order)]
+                        sorted(self.ob.implementedby_directly, key=util.alphabetical_order_func)]
             label = 'Known implementations: '
         else:
             namelist = sorted(self.ob.implements_directly, key=lambda x:x.lower())
@@ -619,7 +601,7 @@ class ZopeInterfaceClassPage(ClassPage):
         r.extend(super().objectExtras(ob))
         return r
 
-commonpages: 'Final[Mapping[str, Type[CommonPage]]]' = {
+commonpages: Final[Mapping[str, Type[CommonPage]]] = {
     'Module': ModulePage,
     'Package': PackagePage,
     'Class': ClassPage,
