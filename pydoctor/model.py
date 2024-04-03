@@ -351,7 +351,12 @@ class Documentable:
                     break
             nxt = self.system.objForFullName(full_name)
             if nxt is None:
-                break
+                try:
+                    nxt = self.system.find_object(full_name)
+                except (RecursionError, LookupError):
+                    break
+                if nxt is None:
+                    break
             obj = nxt
         return '.'.join([full_name] + parts[i + 1:])
 
