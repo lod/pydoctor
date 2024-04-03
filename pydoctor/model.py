@@ -1082,7 +1082,7 @@ class System:
         """Look up an object using a potentially outdated full name.
 
         A name can become outdated/secondary if the object is reparented:
-        L{Systel.allobjects} will only contain its new name,
+        L{System.allobjects} will only contain its new name,
         but we should still have references to the old name.
 
         @param full_name: The fully qualified name of the object.
