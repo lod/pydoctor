@@ -186,6 +186,10 @@ def _handleReExport(info:'ReExport', elsewhere:Collection['ReExport']) -> None:
     as_name = info.as_name
     target_parent = target.parent
     
+    if target_parent is None:
+        # TODO: warn because we can't reparent a root module
+        return None
+    
     # Remember that this name is re-exported 
     target_parent.exported[target.name] = target
 
