@@ -1117,9 +1117,6 @@ class System:
                 print('')
 
     def objForFullName(self, full_name: str, raise_missing:bool=False) -> Optional[Documentable]:
-    #     return self.allobjects.get(fullName)
-
-    # def find_object(self, full_name: str) -> Optional[Documentable]:
         """Look up an object using a full name.
 
         Works with potentially outdated full anmes as well.
@@ -1131,7 +1128,7 @@ class System:
         @return: The object, or L{None} if the name is external (it does not
             match any of the roots of this system).
         @raise LookupError: If the object is not found, while its name does
-            match one of the roots of this system.
+            match one of the roots of this system and C{raise_missing=True}.
         """
         obj = self.allobjects.get(full_name)
         if obj is not None:
