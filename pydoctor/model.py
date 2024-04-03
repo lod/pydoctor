@@ -349,14 +349,12 @@ class Documentable:
                     #       should probably either return None or raise LookupError.
                     full_name = f'{obj.fullName()}.{p}'
                     break
-            nxt = self.system.objForFullName(full_name)
+            try:
+                nxt = self.system.objForFullName(full_name)
+            except RecursionError:
+                break
             if nxt is None:
-                try:
-                    nxt = self.system.find_object(full_name)
-                except (RecursionError, LookupError):
-                    break
-                if nxt is None:
-                    break
+                break
             obj = nxt
         return '.'.join([full_name] + parts[i + 1:])
 
@@ -1118,14 +1116,15 @@ class System:
                 self.needsnl = False
                 print('')
 
-    def objForFullName(self, fullName: str) -> Optional[Documentable]:
-        return self.allobjects.get(fullName)
+    def objForFullName(self, full_name: str, raise_missing:bool=False) -> Optional[Documentable]:
+    #     return self.allobjects.get(fullName)
 
-    def find_object(self, full_name: str) -> Optional[Documentable]:
-        """Look up an object using a potentially outdated full name.
+    # def find_object(self, full_name: str) -> Optional[Documentable]:
+        """Look up an object using a full name.
 
+        Works with potentially outdated full anmes as well.
         A name can become outdated if the object is reparented:
-        L{objForFullName()} will only be able to find it under its new name,
+        L{System.allobjects} only contains its new name,
         but we might still have references to the old name.
 
         @param full_name: The fully qualified name of the object.
@@ -1134,7 +1133,7 @@ class System:
         @raise LookupError: If the object is not found, while its name does
             match one of the roots of this system.
         """
-        obj = self.objForFullName(full_name)
+        obj = self.allobjects.get(full_name)
         if obj is not None:
             return obj
 
@@ -1143,10 +1142,13 @@ class System:
         name_parts = full_name.split('.', 1)
         for root_obj in self.rootobjects:
             if root_obj.name == name_parts[0]:
-                obj = self.objForFullName(root_obj.expandName(name_parts[1]))
+                obj = self.allobjects.get(root_obj.expandName(name_parts[1]))
                 if obj is not None:
                     return obj
-                raise LookupError(full_name)
+                if raise_missing:
+                    raise LookupError(full_name)
+                else:
+                    break
 
         return None
 

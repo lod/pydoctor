@@ -3030,3 +3030,28 @@ def test_re_export_method(systemcls: Type[model.System], capsys:CapSys) -> None:
     builder.buildModules()
     assert capsys.readouterr().out == "moving 'pack.subpack.src.Thing.method' into 'pack'\n"
 
+@systemcls_param
+def test_multiple_reexports_with_aliases(systemcls: Type[model.System], capsys:CapSys) -> None:
+    # the attr.s() case
+    _make = '''
+    """
+    Link to L{attr.s}.
+    """
+
+    def attrs():...
+    '''
+    top = '''
+    from ._make import attrs
+    s = attributes = attrs
+    __all__ = ['s', 'attributes', 'attrs']
+    '''
+    system = systemcls()
+    builder = system.systemBuilder(system)
+    builder.addModuleString(top, 'attr', is_package=True)
+    builder.addModuleString(_make, '_make', parent_name='attr')
+    builder.buildModules()
+
+    make_mod = system.allobjects['attr._make']
+    epydoc2stan.ensure_parsed_docstring(make_mod)
+    to_html(make_mod.parsed_docstring, make_mod.docstring_linker)
+    assert 'Cannot find link target' not in capsys.readouterr().out
