@@ -255,6 +255,8 @@ class ModuleVistor(NodeVisitor):
         cls: model.Class = self.builder.pushClass(node.name, lineno)
         cls.decorators = []
         cls.rawbases = rawbases
+        if sys.version_info >= (3,12):
+            cls.typevars = node.type_params
         cls._initialbaseobjects = initialbaseobjects
         cls._initialbases = initialbases
 
@@ -553,14 +555,14 @@ class ModuleVistor(NodeVisitor):
             expr: Optional[ast.expr],
             lineno: int,
             augassign:Optional[ast.operator],
-            typealiasdef:bool|None=None,
+            typevars:Sequence[ast.type_param] | None,
             ) -> None:
         if target in MODULE_VARIABLES_META_PARSERS:
             # This is metadata, not a variable that needs to be documented,
             # and therefore doesn't need an Attribute instance.
             return
         default_kind = (model.DocumentableKind.VARIABLE 
-                        if not typealiasdef else 
+                        if typevars is None else 
                         model.DocumentableKind.TYPE_ALIAS)
         parent = self.builder.current
         obj = parent.contents.get(target)
@@ -593,6 +595,9 @@ class ModuleVistor(NodeVisitor):
                              defaultKind=default_kind)
         self._storeAttrValue(obj, expr, augassign)
         self._storeCurrentAttr(obj, augassign)
+        
+        if typevars is not None and obj.kind is model.DocumentableKind.TYPE_ALIAS:
+            obj.typevars = typevars
 
     def _handleAssignmentInModule(self,
             target: str,
@@ -600,14 +605,14 @@ class ModuleVistor(NodeVisitor):
             expr: Optional[ast.expr],
             lineno: int,
             augassign:Optional[ast.operator],
-            typealiasdef:bool,
+            typevars:Sequence[ast.type_param] | None,
             ) -> None:
         module = self.builder.current
         assert isinstance(module, model.Module)
         if not _handleAliasing(module, target, expr):
             self._handleModuleVar(target, annotation, expr, lineno, 
                                   augassign=augassign, 
-                                  typealiasdef=typealiasdef)
+                                  typevars=typevars)
 
     def _handleClassVar(self,
             name: str,
@@ -735,7 +740,7 @@ class ModuleVistor(NodeVisitor):
             expr: ast.expr|None,
             lineno: int,
             augassign:ast.operator|None=None,
-            typealiasdef:bool=False,
+            typevars:Sequence[ast.type_param] | None=None,
             ) -> None:
         if isinstance(targetNode, ast.Name):
             target = targetNode.id
@@ -743,7 +748,7 @@ class ModuleVistor(NodeVisitor):
             if isinstance(scope, model.Module):
                 self._handleAssignmentInModule(target, annotation, expr, lineno, 
                                                augassign=augassign, 
-                                               typealiasdef=typealiasdef)
+                                               typevars=typevars)
             elif isinstance(scope, model.Class):
                 if augassign or not self._handleOldSchoolMethodDecoration(target, expr):
                     self._handleAssignmentInClass(target, annotation, expr, lineno, augassign=augassign)
@@ -778,9 +783,16 @@ class ModuleVistor(NodeVisitor):
         self._handleAssignment(node.target, annotation, node.value, node.lineno)
 
     def visit_TypeAlias(self, node: ast.TypeAlias) -> None:
+        # what we do with type_params is (and this true for functions and classes as well):
+        # - map it to a dict of name to type var, the names are supposed to be unique like arguments of a function.
+        #   we do not trigger warnings if the names clashes: pydoctor is not a checker
+        # - when the annotations are rendered, manually link the typevar names to the definition.
+        #   so in the case of a class the type variables the bases will link to the class it self, and for all
+        #   methods the class's type var are accumulated with the eventual method's.
         if isinstance(node.name, ast.Name):
             self._handleAssignment(node.name, None, node.value, 
-                                   node.lineno, typealiasdef=True)
+                                   node.lineno, 
+                                   typevars=node.type_params)
     
     def visit_AugAssign(self, node:ast.AugAssign) -> None:
         self._handleAssignment(node.target, None, node.value, 
@@ -874,7 +886,7 @@ class ModuleVistor(NodeVisitor):
         else:
             func = self.builder.pushFunction(func_name, lineno)
 
-        func.is_async = is_async
+        func.is_async = is_async # if one overload is async, all overloads should be.
         if doc_node is not None:
             # Docstring not allowed on overload
             if is_overload_func:
@@ -882,7 +894,7 @@ class ModuleVistor(NodeVisitor):
                 func.report(f'{func.fullName()} overload has docstring, unsupported', lineno_offset=docline-func.linenumber)
             else:
                 func.setDocstring(doc_node)
-        func.decorators = node.decorator_list
+        
         if is_staticmethod:
             if is_classmethod:
                 func.report(f'{func.fullName()} is both classmethod and staticmethod')
@@ -891,59 +903,24 @@ class ModuleVistor(NodeVisitor):
         elif is_classmethod:
             func.kind = model.DocumentableKind.CLASS_METHOD
 
-        # Position-only arguments were introduced in Python 3.8.
-        posonlyargs: Sequence[ast.arg] = getattr(node.args, 'posonlyargs', ())
-
-        num_pos_args = len(posonlyargs) + len(node.args.args)
-        defaults = node.args.defaults
-        default_offset = num_pos_args - len(defaults)
-        annotations = self._annotations_from_function(node)
-
-        def get_default(index: int) -> Optional[ast.expr]:
-            assert 0 <= index < num_pos_args, index
-            index -= default_offset
-            return None if index < 0 else defaults[index]
-
-        parameters: List[Parameter] = []
-        def add_arg(name: str, kind: Any, default: Optional[ast.expr]) -> None:
-            default_val = Parameter.empty if default is None else _ValueFormatter(default, ctx=func)
-                                                                               # this cast() is safe since we're checking if annotations.get(name) is None first
-            annotation = Parameter.empty if annotations.get(name) is None else _AnnotationValueFormatter(cast(ast.expr, annotations[name]), ctx=func)
-            parameters.append(Parameter(name, kind, default=default_val, annotation=annotation))
-
-        for index, arg in enumerate(posonlyargs):
-            add_arg(arg.arg, Parameter.POSITIONAL_ONLY, get_default(index))
-
-        for index, arg in enumerate(node.args.args, start=len(posonlyargs)):
-            add_arg(arg.arg, Parameter.POSITIONAL_OR_KEYWORD, get_default(index))
-
-        vararg = node.args.vararg
-        if vararg is not None:
-            add_arg(vararg.arg, Parameter.VAR_POSITIONAL, None)
-
-        assert len(node.args.kwonlyargs) == len(node.args.kw_defaults)
-        for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-            add_arg(arg.arg, Parameter.KEYWORD_ONLY, default)
-
-        kwarg = node.args.kwarg
-        if kwarg is not None:
-            add_arg(kwarg.arg, Parameter.VAR_KEYWORD, None)
-
-        return_type = annotations.get('return')
-        return_annotation = Parameter.empty if return_type is None or is_none_literal(return_type) else _AnnotationValueFormatter(return_type, ctx=func)
-        try:
-            signature = Signature(parameters, return_annotation=return_annotation)
-        except ValueError as ex:
-            func.report(f'{func.fullName()} has invalid parameters: {ex}')
-            signature = Signature()
-
-        func.annotations = annotations
-
         # Only set main function signature if it is a non-overload
         if is_overload_func:
-            func.overloads.append(model.FunctionOverload(primary=func, signature=signature, decorators=node.decorator_list))
+            func_model: model.FunctionOverload | model.Function = model.FunctionOverload(primary=func)
+            func.overloads.append(cast(model.FunctionOverload, func_model))
         else:
-            func.signature = signature
+            func_model = func
+        # typevars must be set before calling signature_from_function such that the
+        # names defined in these new scopes will refer the class or function that hold definition of them.
+        if sys.version_info >= (3,12):
+            func_model.typevars = node.type_params
+        
+        annotations, signature = signature_from_functiondef(node, func_model)
+        
+        func_model.signature = signature
+        func_model.decorators = node.decorator_list
+        if isinstance(func_model, model.Function):
+            func_model.annotations = annotations
+            
 
     def depart_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self.builder.popFunction()
@@ -988,59 +965,113 @@ class ModuleVistor(NodeVisitor):
 
         return attr
 
-    def _annotations_from_function(
-            self, func: Union[ast.AsyncFunctionDef, ast.FunctionDef]
-            ) -> Mapping[str, Optional[ast.expr]]:
-        """Get annotations from a function definition.
-        @param func: The function definition's AST.
-        @return: Mapping from argument name to annotation.
-            The name C{return} is used for the return type.
-            Unannotated arguments are omitted.
-        """
-        def _get_all_args() -> Iterator[ast.arg]:
-            base_args = func.args
-            # New on Python 3.8 -- handle absence gracefully
-            try:
-                yield from base_args.posonlyargs
-            except AttributeError:
-                pass
-            yield from base_args.args
-            varargs = base_args.vararg
-            if varargs:
-                varargs.arg = epydoc2stan.VariableArgument(varargs.arg)
-                yield varargs
-            yield from base_args.kwonlyargs
-            kwargs = base_args.kwarg
-            if kwargs:
-                kwargs.arg = epydoc2stan.KeywordArgument(kwargs.arg)
-                yield kwargs
-        def _get_all_ast_annotations() -> Iterator[Tuple[str, Optional[ast.expr]]]:
-            for arg in _get_all_args():
-                yield arg.arg, arg.annotation
-            returns = func.returns
-            if returns:
-                yield 'return', returns
-        return {
-            # Include parameter names even if they're not annotated, so that
-            # we can use the key set to know which parameters exist and warn
-            # when non-existing parameters are documented.
-            name: None if value is None else unstring_annotation(value, self.builder.current)
-            for name, value in _get_all_ast_annotations()
-            }
-    
+def _annotations_from_function(
+        func: Union[ast.AsyncFunctionDef, ast.FunctionDef],
+        ctx: model.Function | model.FunctionOverload,
+        ) -> Mapping[str, Optional[ast.expr]]:
+    """Get annotations from a function definition.
+    @param func: The function definition's AST.
+    @param ctx: The function object.
+    @return: Mapping from argument name to annotation.
+        The name C{return} is used for the return type.
+        Unannotated arguments are omitted.
+    """
+    def _get_all_args() -> Iterator[ast.arg]:
+        base_args = func.args
+        # New on Python 3.8 -- handle absence gracefully
+        try:
+            yield from base_args.posonlyargs
+        except AttributeError:
+            pass
+        yield from base_args.args
+        varargs = base_args.vararg
+        if varargs:
+            varargs.arg = epydoc2stan.VariableArgument(varargs.arg)
+            yield varargs
+        yield from base_args.kwonlyargs
+        kwargs = base_args.kwarg
+        if kwargs:
+            kwargs.arg = epydoc2stan.KeywordArgument(kwargs.arg)
+            yield kwargs
+    def _get_all_ast_annotations() -> Iterator[Tuple[str, Optional[ast.expr]]]:
+        for arg in _get_all_args():
+            yield arg.arg, arg.annotation
+        returns = func.returns
+        if returns:
+            yield 'return', returns
+    return {
+        # Include parameter names even if they're not annotated, so that
+        # we can use the key set to know which parameters exist and warn
+        # when non-existing parameters are documented.
+        name: None if value is None else unstring_annotation(value, ctx.primary 
+                                            if isinstance(ctx, model.FunctionOverload) else ctx)
+        for name, value in _get_all_ast_annotations()
+        }
+
+def signature_from_functiondef(node: Union[ast.AsyncFunctionDef, ast.FunctionDef], 
+                               ctx: model.Function | model.FunctionOverload) -> Tuple[Mapping[str, Optional[ast.expr]], Signature]:
+    # Position-only arguments were introduced in Python 3.8.
+    posonlyargs: Sequence[ast.arg] = getattr(node.args, 'posonlyargs', ())
+
+    num_pos_args = len(posonlyargs) + len(node.args.args)
+    defaults = node.args.defaults
+    default_offset = num_pos_args - len(defaults)
+    annotations = _annotations_from_function(node, ctx)
+
+    def get_default(index: int) -> Optional[ast.expr]:
+        assert 0 <= index < num_pos_args, index
+        index -= default_offset
+        return None if index < 0 else defaults[index]
+
+    parameters: List[Parameter] = []
+    def add_arg(name: str, kind: Any, default: Optional[ast.expr]) -> None:
+        default_val = Parameter.empty if default is None else _ValueFormatter(default, ctx=ctx)
+                                                                            # this cast() is safe since we're checking if annotations.get(name) is None first
+        annotation = Parameter.empty if annotations.get(name) is None else _AnnotationValueFormatter(cast(ast.expr, annotations[name]), ctx=ctx)
+        parameters.append(Parameter(name, kind, default=default_val, annotation=annotation))
+
+    for index, arg in enumerate(posonlyargs):
+        add_arg(arg.arg, Parameter.POSITIONAL_ONLY, get_default(index))
+
+    for index, arg in enumerate(node.args.args, start=len(posonlyargs)):
+        add_arg(arg.arg, Parameter.POSITIONAL_OR_KEYWORD, get_default(index))
+
+    vararg = node.args.vararg
+    if vararg is not None:
+        add_arg(vararg.arg, Parameter.VAR_POSITIONAL, None)
+
+    assert len(node.args.kwonlyargs) == len(node.args.kw_defaults)
+    for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+        add_arg(arg.arg, Parameter.KEYWORD_ONLY, default)
+
+    kwarg = node.args.kwarg
+    if kwarg is not None:
+        add_arg(kwarg.arg, Parameter.VAR_KEYWORD, None)
+
+    return_type = annotations.get('return')
+    return_annotation = Parameter.empty if return_type is None or is_none_literal(return_type) else _AnnotationValueFormatter(return_type, ctx=ctx)
+    try:
+        signature = Signature(parameters, return_annotation=return_annotation)
+    except ValueError as ex:
+        ctx.report(f'{ctx.fullName()} has invalid parameters: {ex}')
+        signature = Signature()
+
+    return annotations, signature
+
 class _ValueFormatter:
     """
     Class to encapsulate a python value and translate it to HTML when calling L{repr()} on the L{_ValueFormatter}.
     Used for presenting default values of parameters.
     """
 
-    def __init__(self, value: ast.expr, ctx: model.Documentable):
+    def __init__(self, value: ast.expr, ctx: model.Documentable | model.FunctionOverload):
         self._colorized = colorize_inline_pyval(value)
         """
         The colorized value as L{ParsedDocstring}.
         """
 
-        self._linker = ctx.docstring_linker
+        self._linker = (ctx.primary if isinstance(ctx, 
+                        model.FunctionOverload) else ctx).docstring_linker
         """
         Linker.
         """
@@ -1059,9 +1090,11 @@ class _AnnotationValueFormatter(_ValueFormatter):
     """
     Special L{_ValueFormatter} for function annotations.
     """
-    def __init__(self, value: ast.expr, ctx: model.Function):
-        super().__init__(value, ctx)
-        self._linker = linker._AnnotationLinker(ctx)
+    def __init__(self, value: ast.expr, ctx: model.Function | model.FunctionOverload):
+        self._colorized = colorize_inline_pyval(value, 
+                            refmap=model.gather_type_params_refs(ctx))
+        self._linker = linker._AnnotationLinker(ctx.primary 
+                        if isinstance(ctx, model.FunctionOverload) else ctx)
     
     def __repr__(self) -> str:
         """

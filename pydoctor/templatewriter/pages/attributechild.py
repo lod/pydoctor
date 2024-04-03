@@ -8,7 +8,7 @@ from twisted.web.template import Tag, renderer, tags
 from pydoctor.model import Attribute, AttributeValueDisplay, DocumentableKind
 from pydoctor import epydoc2stan
 from pydoctor.templatewriter import TemplateElement, util
-from pydoctor.templatewriter.pages import format_decorators
+from pydoctor.templatewriter.pages import format_decorators, format_type_params
 
 if TYPE_CHECKING:
     from twisted.web.template import Flattenable
@@ -59,7 +59,8 @@ class AttributeChild(TemplateElement):
         attr: List["Flattenable"] = []
         if is_type_alias:
             attr += [tags.span('type', class_='py-keyword'), ' ',]
-        attr += [tags.span(self.ob.name, class_='py-defname')]
+        attr += [tags.span(self.ob.name, class_='py-defname'), 
+                 *format_type_params(self.ob)]
         _type = self.docgetter.get_type(self.ob)
         if _type and not is_type_alias:
             attr.extend([': ', _type])

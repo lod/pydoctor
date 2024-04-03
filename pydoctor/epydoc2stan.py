@@ -269,10 +269,13 @@ class FieldHandler:
     def set_param_types_from_annotations(
             self, annotations: Mapping[str, Optional[ast.expr]]
             ) -> None:
+        """This method MUST only be called for Function instances."""
+        assert isinstance(self.obj, model.Function)
         _linker = linker._AnnotationLinker(self.obj)
         formatted_annotations = {
             name: None if value is None
-                       else ParamType(safe_to_stan(colorize_inline_pyval(value), _linker,
+                       else ParamType(safe_to_stan(colorize_inline_pyval(value, 
+                                refmap=model.gather_type_params_refs(self.obj)), _linker,
                                 self.obj, fallback=colorized_pyval_fallback, section='annotation', report=False),
                                 # don't spam the log, invalid annotation are going to be reported when the signature gets colorized
                                 origin=FieldOrigin.FROM_AST)
@@ -861,7 +864,7 @@ def format_undocumented(obj: model.Documentable) -> Tag:
     return tag
 
 
-def type2stan(obj: model.Documentable) -> Optional[Tag]:
+def type2stan(obj: model.Attribute) -> Optional[Tag]:
     """
     Get the formatted type of this attribute.
     """
@@ -874,7 +877,7 @@ def type2stan(obj: model.Documentable) -> Optional[Tag]:
         return safe_to_stan(parsed_type, _linker, obj,
             fallback=colorized_pyval_fallback, section='annotation')
 
-def get_parsed_type(obj: model.Documentable) -> Optional[ParsedDocstring]:
+def get_parsed_type(obj: model.Attribute) -> Optional[ParsedDocstring]:
     """
     Get the type of this attribute as parsed docstring.
     """
@@ -885,7 +888,7 @@ def get_parsed_type(obj: model.Documentable) -> Optional[ParsedDocstring]:
     # Only Attribute instances have the 'annotation' attribute.
     annotation: Optional[ast.expr] = getattr(obj, 'annotation', None)
     if annotation is not None:
-        return colorize_inline_pyval(annotation)
+        return colorize_inline_pyval(annotation, refmap=model.gather_type_params_refs(obj))
 
     return None
 
@@ -992,9 +995,14 @@ def _format_constant_value(obj: model.Attribute) -> Iterator["Flattenable"]:
     # yield the first row.
     yield row
 
+    refmap: Mapping[str, str] | None = None
+    if obj.kind is model.DocumentableKind.TYPE_ALIAS:
+        refmap = model.gather_type_params_refs(obj)
+
     doc = colorize_pyval(obj.value,
         linelen=obj.system.options.pyvalreprlinelen,
-        maxlines=obj.system.options.pyvalreprmaxlines)
+        maxlines=obj.system.options.pyvalreprmaxlines,
+        refmap=refmap)
 
     value_repr = safe_to_stan(doc, obj.docstring_linker, obj,
         fallback=colorized_pyval_fallback, section='rendering of constant')

@@ -120,7 +120,7 @@ def type2str(type_expr: Optional[ast.expr]) -> Optional[str]:
         assert isinstance(src, str)
         return src.strip()
 
-def type2html(obj: model.Documentable) -> str:
+def type2html(obj: model.Attribute) -> str:
     """
     Uses the NotFoundLinker. 
     """
@@ -1342,30 +1342,39 @@ def test_annotated_variables(systemcls: Type[model.System]) -> None:
     C = mod.contents['C']
     a = C.contents['a']
     assert unwrap(a.parsed_docstring) == """first"""
+    assert isinstance(a, model.Attribute)
     assert type2html(a) == 'string'
     b = C.contents['b']
     assert unwrap(b.parsed_docstring) == """second"""
+    assert isinstance(b, model.Attribute)
     assert type2html(b) == 'string'
     c = C.contents['c']
     assert c.docstring == """third"""
+    assert isinstance(c, model.Attribute)
     assert type2html(c) == '<code>str</code>'
     d = C.contents['d']
     assert d.docstring == """fourth"""
+    assert isinstance(d, model.Attribute)
     assert type2html(d) == '<code>str</code>'
     e = C.contents['e']
     assert e.docstring == """fifth"""
+    assert isinstance(e, model.Attribute)
     assert type2html(e) == '<code>List[C]</code>'
     f = C.contents['f']
     assert f.docstring == """sixth"""
+    assert isinstance(f, model.Attribute)
     assert type2html(f) == '<code>List[C]</code>'
     g = C.contents['g']
     assert g.docstring == """seventh"""
+    assert isinstance(g, model.Attribute)
     assert type2html(g) == '<code>List[C]</code>'
     s = C.contents['s']
     assert s.docstring == """instance"""
+    assert isinstance(s, model.Attribute)
     assert type2html(s) == '<code>List[str]</code>'
     m = mod.contents['m']
     assert m.docstring == """module-level"""
+    assert isinstance(m, model.Attribute)
     assert type2html(m) == '<code>bytes</code>'
 
 @typecomment
@@ -2578,6 +2587,7 @@ def test_inferred_type_is_not_propagated_to_subclasses(systemcls: Type[model.Sys
         '''
     mod = fromText(src, systemcls=systemcls, modname='mod')
     thing = mod.system.allobjects['mod.Stuff.thing']
+    assert isinstance(thing, model.Attribute)
     assert epydoc2stan.type2stan(thing) is None
 
 
@@ -2606,6 +2616,7 @@ def test_inherited_type_is_not_propagated_to_subclasses(systemcls: Type[model.Sy
     builder.addModuleString(src2, 'mod')
     builder.buildModules()
     thing = system.allobjects['mod.Stuff.thing']
+    assert isinstance(thing, model.Attribute)
     assert epydoc2stan.type2stan(thing) is None
 
 @systemcls_param
@@ -2734,4 +2745,3 @@ def test_typealias_unstring(systemcls: Type[model.System]) -> None:
     with pytest.raises(StopIteration):
         # there is not Constant nodes in the type alias anymore
         next(n for n in ast.walk(typealias.value) if isinstance(n, ast.Constant))
-

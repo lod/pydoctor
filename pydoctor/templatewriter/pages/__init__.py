@@ -51,7 +51,25 @@ def format_decorators(obj: Union[model.Function, model.Attribute, model.Function
         epydoc2stan.reportWarnings(documentable_obj, doc.warnings, section='colorize decorator')
         yield '@', stan.children, tags.br()
 
-def format_signature(func: Union[model.Function, model.FunctionOverload]) -> "Flattenable":
+def format_type_params(ob: model.Function | model.FunctionOverload | model.Class | model.Attribute) -> Iterator[Flattenable]:
+    if not ob.typevars:
+        return
+    ctx = ob.primary if isinstance(ob, model.FunctionOverload) else ob
+    _linker = linker._AnnotationLinker(ctx)
+    refmap = model.gather_type_params_refs(ob)
+    stan: list[Flattenable] = []
+    for t in ob.typevars:
+        if stan:
+            stan += [', ']
+        stan += [*epydoc2stan.safe_to_stan(
+            colorize_inline_pyval(t, refmap=refmap), _linker, ctx, 
+                    fallback=epydoc2stan.colorized_pyval_fallback, 
+                    section='rendering of type params').children]
+    yield '['
+    yield from stan
+    yield ']'
+
+def format_signature(func: Union[model.Function, model.FunctionOverload]) -> Flattenable:
     """
     Return a stan representation of a nicely-formatted source-like function signature for the given L{Function}.
     Arguments default values are linked to the appropriate objects when possible.
@@ -65,16 +83,17 @@ def format_signature(func: Union[model.Function, model.FunctionOverload]) -> "Fl
             [epydoc2stan.get_to_stan_error(e)], section='signature')
         return broken
 
-def format_class_signature(cls: model.Class) -> "Flattenable":
+def format_class_signature(cls: model.Class) -> Flattenable:
     """
     The class signature is the formatted list of bases this class extends. 
     It's not the class constructor.
     """
-    r: List["Flattenable"] = []
+    r: List["Flattenable"] = [*format_type_params(cls),]
     # the linker will only be used to resolve the generic arguments of the base classes, 
     # it won't actually resolve the base classes (see comment few lines below).
     # this is why we're using the annotation linker.
     _linker = linker._AnnotationLinker(cls)
+    base_refmap = model.gather_type_params_refs(cls)
     if cls.rawbases:
         r.append('(')
         
@@ -88,13 +107,13 @@ def format_class_signature(cls: model.Class) -> "Flattenable":
             # a class with the same name as a base class confused pydoctor and it would link 
             # to it self: https://github.com/twisted/pydoctor/issues/662
 
-            refmap = None
+            refmap = {}
             if base_obj is not None:
                 refmap = {str_base:base_obj.fullName()}
                 
             # link to external class, using the colorizer here
             # to link to classes with generics (subscripts and other AST expr).
-            stan = epydoc2stan.safe_to_stan(colorize_inline_pyval(base_node, refmap=refmap), _linker, cls, 
+            stan = epydoc2stan.safe_to_stan(colorize_inline_pyval(base_node, refmap={**base_refmap, **refmap}), _linker, cls, 
                 fallback=epydoc2stan.colorized_pyval_fallback, 
                 section='rendering of class signature')
             r.extend(stan.children)
@@ -127,7 +146,10 @@ def format_function_def(func_name: str, is_async: bool,
     r.extend([
         tags.span(def_stmt, class_='py-keyword'), ' ',
         tags.span(func_name, class_='py-defname'), 
-        tags.span(format_signature(func), class_='function-signature'), ':',
+        
+        tags.span([*format_type_params(func),  
+                   format_signature(func)], 
+                  class_='function-signature'), ':',
     ])
     return r
     

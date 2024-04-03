@@ -1449,6 +1449,7 @@ def test_annotation_formatting(annotation: str) -> None:
     value: {expected_text}
     ''')
     obj = mod.contents['value']
+    assert isinstance(obj, model.Attribute)
     parsed = epydoc2stan.get_parsed_type(obj)
     assert parsed is not None
     linker = RecordingAnnotationLinker()

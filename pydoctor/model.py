@@ -634,10 +634,38 @@ def _find_dunder_constructor(cls:'Class') -> Optional['Function']:
             return _init
     return None
 
+def gather_type_params_refs(ob: Class | Function | Attribute | FunctionOverload) -> Mapping[str, str]:
+    """
+    Starting with Python 3.12 classes and functions can include defintions of type variable -likes.
+    This function returns all mapping of all type variables- like defined in the context of the given object
+    to the full name of the class or function that defines it.
+
+    Type variables are not documentables so we need to treat them separately. 
+    """
+    curr = ob
+    typevar_sources: list[Class | Function | Attribute | FunctionOverload] = []
+    while True:
+        typevar_sources += [curr]
+        # For class members re-exported this will be wrong but it will be fixed 
+        # by adding a .parsed_typevars attribute alongside PR https://github.com/twisted/pydoctor/pull/723
+        # It can only be a class at the moment
+        if isinstance(curr.parent, (Module, type(None))):
+            break
+        else:
+            curr = cast(Class, curr.parent)
+
+    refmap = {t.name:o.fullName() for o in 
+              reversed(typevar_sources) for t in o.typevars or [] 
+              # the condition is only for mypy since type_params 
+              # can only be one of these three types at the moment
+              if isinstance(t, (ast.TypeVar, ast.TypeVarTuple, ast.ParamSpec))}
+    return refmap
+
 class Class(CanContainImportsDocumentable):
     kind = DocumentableKind.CLASS
     parent: CanContainImportsDocumentable
     decorators: Sequence[Tuple[str, Optional[Sequence[ast.expr]]]]
+    typevars: Sequence[ast.type_param] | None = None
 
     # set in post-processing:
     _finalbaseobjects: Optional[List[Optional['Class']]] = None 
@@ -849,6 +877,7 @@ class Function(Inheritable):
     decorators: Optional[Sequence[ast.expr]]
     signature: Optional[Signature]
     overloads: List['FunctionOverload']
+    typevars: Sequence[ast.type_param] | None = None
 
     def setup(self) -> None:
         super().setup()
@@ -863,8 +892,23 @@ class FunctionOverload:
     @note: This is not an actual documentable type. 
     """
     primary: Function
-    signature: Signature
-    decorators: Sequence[ast.expr]
+    signature: Signature = attr.ib(factory=Signature)
+    decorators: Sequence[ast.expr] = attr.ib(factory=list)
+    typevars: Sequence[ast.type_param] | None = None
+
+    @property
+    def parent(self) -> CanContainImportsDocumentable:
+        return self.primary.parent
+    
+    @property
+    def module(self) -> Module:
+        return self.primary.module
+    
+    def fullName(self) -> str:
+        return self.primary.fullName()
+
+    def report(self, msg:str, **kw:str | int) -> None:
+        self.primary.report(msg, **kw) # type:ignore
 
 class Attribute(Inheritable):
     kind: Optional[DocumentableKind] = DocumentableKind.ATTRIBUTE
@@ -876,6 +920,7 @@ class Attribute(Inheritable):
 
     None value means the value is not initialized at the current point of the the process. 
     """
+    typevars: Sequence[ast.type_param] | None = None
 
 # Work around the attributes of the same name within the System class.
 _ModuleT = Module
