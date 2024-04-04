@@ -71,9 +71,6 @@ def _resolveImport(ctx: model.CanContainImportsDocumentable, import_:_Indirectio
         resolved = _localDocumentableToFullName(ctx, allobjects[fullName], indirections)
         if resolved:
             return resolved
-        else:
-            return allobjects[fullName].fullName()
-
 
     dottedName = fullName.split('.')
     parentName, targetName = '.'.join(dottedName[0:-1]), dottedName[-1]
@@ -144,7 +141,7 @@ def _resolveAlias(self: model.CanContainImportsDocumentable, alias: _Indirection
         # We try with the parent scope.
         # This is used in situations like right here in the System class and it's aliases (before version > 22.5.1), 
         # because they have the same name as the name they are aliasing, the alias resolves to the same object.
-        # We could use better static analysis and make this code more simple and less error-prone.
+        # We could use astuce here to be more precise (better static analysis) and make this code more simple and less error-prone.
         return parent.expandName(name, indirections=indirections + [alias])
 
     self.module.report("Failed to resolve alias (found same alias again)", lineno_offset=alias.linenumber, section='aliases')
