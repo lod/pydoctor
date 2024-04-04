@@ -126,11 +126,6 @@ class ImportAlias:
     Imports are not documentable, but share bits of the interface.
     """
 
-    # invalid note:
-    # @note: This object is used to represent both import aliases and 
-    #     undocumented aliases (which are not documented at all - 
-    #     not even hidden, there are only there to keep track of indirections).
-
     def __init__(self, system: 'System', 
                  name: str, alias:str, 
                  parent: 'CanContainImportsDocumentable', 
@@ -331,12 +326,15 @@ class Documentable:
         for o in self.contents.values():
             o._handle_reparenting_post()
 
-    def expandName(self, name: str, indirections:list[_IndirectionT]|None=None) -> str:
+    def expandName(self, name: str, indirections:Any=None) -> str:
         """
         See L{names.expandName}
         """
         from pydoctor import names
         return names.expandName(self, name, indirections)
+    
+    def isNameDefined(self, name: str) -> bool:
+        raise NotImplementedError(self.isNameDefined)
 
     def resolveName(self, name: str) -> Optional['Documentable']:
         """
