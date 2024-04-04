@@ -61,9 +61,8 @@ def _maybeAttribute(cls: model.Class, name: str) -> bool:
 #     ctx._localNameToFullName_map[target] = full_name
 #     return True
 
-
-_CONTROL_FLOW_BLOCKS:Tuple[Type[ast.stmt],...] = (ast.If, ast.While, ast.For, ast.Try, 
-                                            ast.AsyncFor, ast.With, ast.AsyncWith)
+_LOOP_BLOCKS: Tuple[Type[ast.stmt],...] = (ast.While, ast.For, ast.AsyncFor,)
+_CONTROL_FLOW_BLOCKS: Tuple[Type[ast.stmt],...] = (ast.If, ast.Try, ast.With, ast.AsyncWith, *_LOOP_BLOCKS)
 """
 AST types that introduces a new control flow block, potentially conditionnal.
 """
@@ -95,12 +94,15 @@ def is_alias(obj: model.Attribute,
              value: Optional[ast.expr]) -> bool:
     """
     Detect if the given assignment is an alias.
+
     This is very similar to L{is_constant} except that: 
         - the value must be only composed by L{ast.Attribute} and L{ast.Name} instances.
-        - the attribute must not be a type alias, in which case it will be flagges as a type alias instead.
+        - the attribute must not be a type alias, in which case it will be flagged as a type alias instead.
+        - conditional blocks are allowed in node ancestors, just no loops.
+        - it may be overriden
     """
-    if not is_attribute_overridden(obj, value) and value and node2dottedname(value):
-        if not any(isinstance(n, _CONTROL_FLOW_BLOCKS) for n in get_parents(value)):
+    if value and node2dottedname(value):
+        if not any(isinstance(n, _LOOP_BLOCKS) for n in get_parents(value)):
             return not _is_typealias(obj, annotation, value)
     return False
 
