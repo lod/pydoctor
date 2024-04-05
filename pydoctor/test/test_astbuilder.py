@@ -11,6 +11,8 @@ from pydoctor.epydoc2stan import ensure_parsed_docstring, format_summary, get_pa
 from pydoctor.test.test_packages import processPackage
 from pydoctor.utils import partialclass
 
+from pydoctor.extensions import ExtRegistrar, ModuleVisitorExt
+
 from . import CapSys, NotFoundLinker, posonlyargs, typecomment
 import pytest
 
@@ -3454,3 +3456,43 @@ def test_typealias_unstring(systemcls: Type[model.System]) -> None:
         # there is not Constant nodes in the type alias anymore
         next(n for n in ast.walk(typealias.value) if isinstance(n, ast.Constant))
 
+@systemcls_param
+def test_expand_name_cycle_proof_while_visiting(systemcls: Type[model.System]) -> None:
+    src_inteface = '''\
+    from zope.interface import Interface
+    from top.impl import Address
+
+    class IAddress(Interface):
+        ...
+    '''
+
+    src_impl = '''\
+    from zope.interface import implementer
+    from top.iface import IAddress
+    
+    @implementer(IAddress)
+    class Address(object):
+        ...  
+    '''
+    system = systemcls()
+
+    class myExt(ModuleVisitorExt):
+        def depart_ClassDef(self, cls: ast.ClassDef):
+            ctx = self.visitor.builder.current
+            assert isinstance(ctx, model.Module)
+
+            if ctx.name == 'iface':
+                assert ctx.expandName('Address') == 'top.impl.Address'
+            if ctx.name == 'impl':
+                
+                assert list(ctx._localNameToFullName_map) == ['implementer', 'IAddress']
+                assert ctx._localNameToFullName_map['IAddress'].alias == 'top.iface.IAddress'
+                assert ctx.expandName('IAddress') == 'top.iface.IAddress'
+
+    ExtRegistrar(system).register_astbuilder_visitor(myExt)
+
+    builder = system.systemBuilder(system)
+    builder.addModuleString('', 'top', is_package=True)
+    builder.addModuleString(src_inteface, 'iface', parent_name='top')
+    builder.addModuleString(src_impl, 'impl', parent_name='top')
+    builder.buildModules()

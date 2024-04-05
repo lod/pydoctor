@@ -82,9 +82,10 @@ def _resolveImport(ctx: model.CanContainImportsDocumentable, import_:_Indirectio
     # We clould use a while loop to walk grand parents until there are no more.
     if parentName in allobjects:
         parent = allobjects[parentName]
-        return _localNameToFullName(parent, targetName, indirections)
-    else:
-        return fullName
+        if not(isinstance(parent, model.Module) and parent.state != model.ProcessingState.PROCESSED):
+            return _localNameToFullName(parent, targetName, indirections)
+    
+    return fullName
 
 def fail_to_many_aliases(self: model.CanContainImportsDocumentable, alias: _IndirectionT, indirections:Optional[List[_IndirectionT]]=None) -> Optional[str]:
     """
