@@ -46,7 +46,7 @@ def _localNameToFullName(ctx: model.Documentable, name: str, indirections:Option
             # for classes, we try the upper scope.
             return _localNameToFullName(ctx.parent, name, indirections)
         else:
-            return name
+            raise LookupError()
     else:
         assert ctx.parent is not None
         return _localNameToFullName(ctx.parent, name, indirections)
@@ -82,8 +82,11 @@ def _resolveImport(ctx: model.CanContainImportsDocumentable, import_:_Indirectio
     # We clould use a while loop to walk grand parents until there are no more.
     if parentName in allobjects:
         parent = allobjects[parentName]
-        if not(isinstance(parent, model.Module) and parent.state != model.ProcessingState.PROCESSED):
+        try:
             return _localNameToFullName(parent, targetName, indirections)
+        except LookupError:
+            # The name does not exists or the module is not completely processed yet.
+            pass
     
     return fullName
 
@@ -213,22 +216,25 @@ def expandName(self:model.Documentable, name: str, indirections:Optional[List[_I
             # So we stop resolving the name when we encounter something that is not a class or module. 
             full_name = f'{ctx.fullName()}.{part}'
             break
-        full_name = _localNameToFullName(ctx, part, indirections)
-        if full_name == part and i != 0:
-            # The local name was not found.
-            # If we're looking at a class, we try our luck with the inherited members
-            if isinstance(ctx, model.Class):
-                inherited = ctx.find(part)
-                if inherited: 
-                    full_name = inherited.fullName()
-            if full_name == part:
-                # We don't have a full name
-                # TODO: Instead of returning the input, _localNameToFullName()
-                #       should probably either return None or raise LookupError.
-                # Or maybe we should find a way to indicate if the expanded name is "guessed" or if we have the the correct fullName. 
-                # With the current implementation, this would mean checking if "parts[i + 1:]" contains anything.
-                full_name = f'{ctx.fullName()}.{part}'
-                break
+        try:
+            full_name = _localNameToFullName(ctx, part, indirections)
+        except LookupError:
+            if i == 0:
+                full_name = part
+            else:
+                full_name = None
+                # The local name was not found.
+                # If we're looking at a class, we try our luck with the inherited members
+                if isinstance(ctx, model.Class):
+                    inherited = ctx.find(part)
+                    if inherited: 
+                        full_name = inherited.fullName()
+                if full_name is None:
+                    # We don't have a full name
+                    # TODO find a way to indicate if the expanded name is "guessed" or if we have the the correct fullName. 
+                    # With the current implementation, this would mean checking if "parts[i + 1:]" contains anything.
+                    full_name = f'{ctx.fullName()}.{part}'
+                    break
         nxt = self.system.objForFullName(full_name)
         if nxt is None:
             break
