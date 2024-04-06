@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import sys
+import builtins
 
 from functools import partial
 from inspect import Parameter, Signature
@@ -19,6 +20,7 @@ from pydoctor.astutils import (is_none_literal, is_typing_annotation, is_using_a
                                is__name__equals__main__, unstring_annotation, iterassign, extract_docstring_linenum, infer_type, get_parents,
                                get_docstring_node, unparse, NodeVisitor, Parentage, Str)
 
+_builtins_names = set(dir(builtins))
 
 def parseFile(path: Path) -> ast.Module:
     """Parse the contents of a Python source file."""
@@ -254,6 +256,11 @@ class ModuleVistor(NodeVisitor):
             str_base = '.'.join(node2dottedname(name_node) or \
                 # Fallback on unparse() if the expression is unknown by node2dottedname().
                 [unparse(base_node).strip()]) 
+            
+            # Special case builtins names so they are preceeded with 'builtins'.
+            if str_base in _builtins_names and not parent.isNameDefined(str_base):
+                # A non-shadowed builtins
+                str_base = f'builtins.{str_base}'
                 
             # Store the base as string and as ast.expr in rawbases list.
             rawbases += [(str_base, base_node)]
@@ -262,6 +269,7 @@ class ModuleVistor(NodeVisitor):
             # if we can't resolve it now, it most likely mean that there are
             # import cycles (maybe in TYPE_CHECKING blocks). 
             # None bases will be re-resolved in post-processing.
+
             expandbase = parent.expandName(str_base)
             baseobj = self.system.objForFullName(expandbase)
             
@@ -440,7 +448,8 @@ class ModuleVistor(NodeVisitor):
                         ob.reparent(current, as_name)
                         return True
             else:
-                # re-export names that are not part of the current system with an alias
+                # return False
+                # re-export names that are not part of the current system with an alias, this should be done in post-processing
                 attr = self.builder.addAttribute(name=as_name, kind=model.DocumentableKind.ALIAS, parent=current)
                 attr.alias = f'{modname}.{origin_name}'
                 # This is only for the HTML repr
@@ -473,11 +482,12 @@ class ModuleVistor(NodeVisitor):
             # are processed (getProcessedModule() ignores non-modules).
             if isinstance(mod, model.Package):
                 self.system.getProcessedModule(f'{modname}.{orgname}')
-            if self._handleReExport(exports, orgname, asname, mod or modname) is True:
-                continue
 
             _localNameToFullName[asname] = model.ImportAlias(self.system, asname, 
                 alias=f'{modname}.{orgname}', parent=current, linenumber=lineno)
+            
+            if self._handleReExport(exports, orgname, asname, mod or modname) is True:
+                continue
 
     def visit_Import(self, node: ast.Import) -> None:
         """Process an import statement.
@@ -611,13 +621,26 @@ class ModuleVistor(NodeVisitor):
         Create or update an alias.
         """
         if is_alias(obj, annotation, value):
-            obj.kind = model.DocumentableKind.ALIAS
+            
             # This will be used for HTML repr of the alias.
             obj.value = value
             dottedname = node2dottedname(value)
             assert dottedname is not None
             name = '.'.join(dottedname)
-            # Store the alias value as string now, this avoids doing it in _resolveAlias().
+
+            defs = obj.getDefinitions(name, before=obj.linenumber)
+            # Store the alias value as string now, 
+            # this avoids doing it in _resolveAlias().
+            if (name in _builtins_names and not defs):
+                # it is a non-shadowed builtins
+                name = f'builtins.{name}'
+            elif defs:
+                # let's try to resolve the local name now 
+                d = defs[-1]
+                fullname = d.alias if isinstance(d, model.ImportAlias) else d.fullName()
+                name = fullname
+            
+            obj.kind = model.DocumentableKind.ALIAS
             obj.alias = name
         
         elif obj.kind is model.DocumentableKind.ALIAS:

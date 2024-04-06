@@ -870,7 +870,6 @@ def test_exportName_re_exported_aliases(systemcls: Type[model.System]) -> None:
     What if we re-export an alias?
     """
 
-    # TODO: fix this test.
     base_mod = '''
     class Zoo:
         _1=1
@@ -894,17 +893,18 @@ def test_exportName_re_exported_aliases(systemcls: Type[model.System]) -> None:
     bmod = system.allobjects['base_mod']
     alias = system.allobjects['mod.Z']
 
-    assert mod.expandName('Z') == "Zoo" # Should be "base_mod.Zoo"
-    assert mod.expandName('Z._1') == "Zoo._1" # Should be "base_mod.Zoo._1", linked to https://github.com/twisted/pydoctor/issues/295
+    assert mod.expandName('Z') == "base_mod.Zoo" # Should be "base_mod.Zoo"
+    assert mod.expandName('Z._1') == "base_mod.Zoo._1" # Should be "base_mod.Zoo._1", linked to https://github.com/twisted/pydoctor/issues/295
 
     assert bmod.expandName('Z._1') == "base_mod.Zoo._1"
     assert bmod.expandName('Zoo._1') == "base_mod.Zoo._1"
     
     assert isinstance(alias, model.Attribute)
     assert alias.kind is model.DocumentableKind.ALIAS
-    assert alias.alias == 'Zoo'
+    assert alias.alias == 'base_mod.Zoo'
 
-    assert alias.resolved_alias is None # This should not be None!
+    # This should not be None!
+    assert alias.resolved_alias is not None
 
 
 @systemcls_param
@@ -3496,3 +3496,41 @@ def test_expand_name_cycle_proof_while_visiting(systemcls: Type[model.System]) -
     builder.addModuleString(src_inteface, 'iface', parent_name='top')
     builder.addModuleString(src_impl, 'impl', parent_name='top')
     builder.buildModules()
+
+@systemcls_param
+def test_builtins_aliases(systemcls: Type[model.System], capsys:CapSys) -> None:
+    src = '''
+    """
+    @var unicode: The type of Unicode strings, C{unicode} on Python 2 and C{str}
+    on Python 3.
+    """
+    from io import StringIO
+    unicode = str
+    set = set
+    class list(list):
+        ...
+    xrange = range
+    StringIO = StringIO
+    myList = list
+    __all__ = [
+    'unicode', 'set', 'xrange', 'StringIO', 'list',
+    ]
+    '''
+
+    system = systemcls()
+    builder = system.systemBuilder(system)
+    builder.addModuleString(src, 'top', is_package=True)
+    builder.buildModules()
+    top = system.allobjects['top']
+    strio = system.allobjects['top.StringIO']
+    setal = system.allobjects['top.set']
+    listal = system.allobjects['top.myList']
+    assert isinstance(strio, model.Attribute)
+    assert list(top._localNameToFullName_map) == ['StringIO']
+    assert len(strio.getDefinitions('StringIO', before=10)) == 1
+    assert len(strio.getDefinitions('StringIO')) == 2
+    assert strio.alias == 'io.StringIO'
+    assert setal.alias == 'builtins.set'
+    assert listal.alias == 'top.list'
+    assert list(top.contents)==['unicode', 'StringIO', 'set', 'list', 'xrange', 'myList']
+    assert not capsys.readouterr().out

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import abc
 import ast
+from itertools import chain
+from operator import attrgetter, itemgetter
 import attr
 from collections import defaultdict
 import datetime
@@ -17,7 +19,7 @@ import platform
 import sys
 import textwrap
 import types
-from enum import Enum
+from enum import Enum, IntEnum
 from inspect import signature, Signature
 from pathlib import Path
 from typing import (
@@ -79,6 +81,16 @@ class ProcessingState(Enum):
     PROCESSING = 1
     PROCESSED = 2
 
+class NameDefined(IntEnum):
+    """
+    >>> bool(NameDefined.NOT_FOUND)
+    False
+    >>> bool(NameDefined.BY_IMPORT)
+    True
+    """
+    NOT_FOUND = 0
+    BY_IMPORT = 1
+    BY_DECLARATION = 2
 
 class PrivacyClass(Enum):
     """L{Enum} containing values indicating how private an object should be.
@@ -333,8 +345,18 @@ class Documentable:
         from pydoctor import names
         return names.expandName(self, name, indirections)
     
-    def isNameDefined(self, name: str) -> bool:
+    def isNameDefined(self, name: str, before:int|None=None) -> bool:
         raise NotImplementedError(self.isNameDefined)
+
+    def getDefinitions(self, name: str, before:int|None=None) -> list[Documentable | ImportAlias]:
+        """
+        Find all registered definitions of the given name in the context of C{self}.
+        The definitions are sorted by source linenumber.
+
+        @param before: A linenumber to filter all definitions after this point. 
+            Only works for the locals since upper scope definitions are executed before.
+        """
+        raise NotImplementedError(self.getDefinitions)
 
     def resolveName(self, name: str) -> Optional['Documentable']:
         """
@@ -426,16 +448,31 @@ class CanContainImportsDocumentable(Documentable):
         super().setup()
         self._localNameToFullName_map: Dict[str, ImportAlias] = {}
     
-    def isNameDefined(self, name: str) -> bool:
+    def isNameDefined(self, name: str, before:int|None=None) -> bool:
         name = name.split('.')[0]
+        return bool(self.getDefinitions(name, before))
+    
+    def getDefinitions(self, name: str, before:int|None=None) -> list[Documentable | ImportAlias]:
+        defs: Iterator[Documentable | ImportAlias] = iter([])
         if name in self.contents:
-            return True
+            defs = chain(defs, [self.contents[name]])
         if name in self._localNameToFullName_map:
-            return True
-        if not isinstance(self, Module):
-            return self.module.isNameDefined(name)
-        else:
-            return False
+            defs = chain(defs, [self._localNameToFullName_map[name]])
+        
+        if before is not None:
+            def _f(o: Documentable | ImportAlias) -> bool:
+                return o.linenumber < before
+            defs = filter(_f, defs)
+
+        try:
+            i0 = next(iter(defs))
+        except StopIteration:
+            if not isinstance(self, Module):
+                return self.module.getDefinitions(name)
+            # not found
+            return []
+
+        return sorted(chain([i0], defs), key=attrgetter('linenumber'))
         
 
 class Module(CanContainImportsDocumentable):
@@ -505,7 +542,7 @@ class Package(Module):
     kind = DocumentableKind.PACKAGE
 
 # List of exceptions class names in the standard library, Python 3.8.10
-_STD_LIB_EXCEPTIONS = ('ArithmeticError', 'AssertionError', 'AttributeError', 
+_STD_LIB_EXCEPTIONS = set(('ArithmeticError', 'AssertionError', 'AttributeError', 
     'BaseException', 'BlockingIOError', 'BrokenPipeError', 
     'BufferError', 'BytesWarning', 'ChildProcessError', 
     'ConnectionAbortedError', 'ConnectionError', 
@@ -525,7 +562,7 @@ _STD_LIB_EXCEPTIONS = ('ArithmeticError', 'AssertionError', 'AttributeError',
     'SystemExit', 'TabError', 'TimeoutError', 'TypeError', 
     'UnboundLocalError', 'UnicodeDecodeError', 'UnicodeEncodeError', 
     'UnicodeError', 'UnicodeTranslateError', 'UnicodeWarning', 'UserWarning', 
-    'ValueError', 'Warning', 'ZeroDivisionError')
+    'ValueError', 'Warning', 'ZeroDivisionError'))
 def is_exception(cls: 'Class') -> bool:
     """
     Whether is class should be considered as 
@@ -533,6 +570,12 @@ def is_exception(cls: 'Class') -> bool:
     kind L{DocumentableKind.EXCEPTION}.
     """
     for base in cls.mro(True, False):
+        if not isinstance(base, str):
+            base = base.fullName()
+        if base.startswith('builtins.'):
+            base = base[9:]
+        if '.' in base:
+            continue
         if base in _STD_LIB_EXCEPTIONS:
             return True
     return False
@@ -805,8 +848,11 @@ class Inheritable(Documentable):
             if self.name in b.contents:
                 yield b.contents[self.name]
     
-    def isNameDefined(self, name: str) -> bool:
-        return self.parent.isNameDefined(name)
+    def isNameDefined(self, name: str, before:int|None=None) -> bool:
+        return self.parent.isNameDefined(name, before)
+
+    def getDefinitions(self, name: str, before:int|None=None) -> Documentable | ImportAlias | None:
+        return self.parent.getDefinitions(name, before)
 
 class Function(Inheritable):
     kind = DocumentableKind.FUNCTION
