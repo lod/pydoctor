@@ -68,6 +68,11 @@ class _EpydocLinker(DocstringLinker):
         self._init_obj = obj
         self._page_object: Optional['model.Documentable'] = obj.page_object
     
+    def debug(self, msg:str, lineno:int):
+        if self.reporting_obj is None:
+            return
+        self.reporting_obj.report(msg, 'resolve_identifier_xref', lineno, thresh=5)
+
     @property
     def obj(self) -> 'model.Documentable':
         """
@@ -105,14 +110,18 @@ class _EpydocLinker(DocstringLinker):
             candidates: Iterable['model.Documentable'],
             lineno: int
             ) -> Optional['model.Documentable']:
-        part0 = name.split('.')[0]
+        self.debug(f'Linker looks for name {name!r} in several candidates...', lineno)
+        part0 = name.split('.')[0] if '.' in name else name
         potential_targets = []
         for src in candidates:
-            if part0 not in src.contents:
+            if not src.isNameDefined(part0):
+                self.debug(f'Linker does not find {part0} in {src}, continuing...', lineno)
                 continue
-            target = src.resolveName(name)
+            target = src.contents.get(name) or src.resolveName(name)
+            self.debug(f'Linker finds {part0} in {src} resolving name into {target}', lineno)
             if target is not None and target not in potential_targets:
                 potential_targets.append(target)
+        
         if len(potential_targets) == 1:
             return potential_targets[0]
         elif len(potential_targets) > 1 and self.reporting_obj:
@@ -183,16 +192,26 @@ class _EpydocLinker(DocstringLinker):
         # Check if 'identifier' is the fullName of an object.
         target = self.obj.system.objForFullName(identifier)
         if target is not None:
+            self.debug(f'Linker found an exact full name match for {identifier!r}', lineno)
             return target
-
+        else:
+            self.debug(f'Linker did not found an exact full name match for {identifier!r}', lineno)
+        
         # Check if the fullID exists in an intersphinx inventory.
         fullID = self.obj.expandName(identifier)
+        self.debug(f'Linker expands name {identifier!r} into {fullID!r} in the context of {self.obj}', lineno)
+        
         target_url = self.look_for_intersphinx(fullID)
         if not target_url:
             # FIXME: https://github.com/twisted/pydoctor/issues/125
             # expandName is unreliable so in the case fullID fails, we
             # try our luck with 'identifier'.
             target_url = self.look_for_intersphinx(identifier)
+            if target_url:
+                self.debug(f'Linker did not found an intersphinx entry for {fullID!r}, but {identifier!r} worked', lineno)
+        else:
+            self.debug(f'Linker found an intersphinx entry for {fullID!r}', lineno)
+        
         if target_url:
             return target_url
 
@@ -204,11 +223,13 @@ class _EpydocLinker(DocstringLinker):
         # to an object by Python name resolution in each context.
         src: Optional['model.Documentable'] = self.obj
         while src is not None:
-            target = src.resolveName(identifier)
+            target = src.contents.get(identifier) or src.resolveName(identifier)
             if target is not None:
+                self.debug(f'Linker found an parent object of {self.obj} ({src}) in which the name {identifier!r} resolves to {target}', lineno)
                 return target
             src = src.parent
-
+        
+        self.debug(f'Linker did not found any parent object in which the name {identifier!r} is defined, continuing with uncle objects', lineno)
         # Walk up the object tree again and see if 'identifier' refers to an
         # object in an "uncle" object.  (So if p.m1 has a class C, the
         # docstring for p.m2 can say L{C} to refer to the class in m1).
@@ -217,15 +238,17 @@ class _EpydocLinker(DocstringLinker):
         while src is not None:
             target = self.look_for_name(identifier, src.contents.values(), lineno)
             if target is not None:
+                self.debug(f'Linker found a uncle object of {self.obj} in which the name {identifier!r} resolves to {target}', lineno)
                 return target
             src = src.parent
 
+        self.debug(f'Linker did not found any uncle object in the context of {self.obj} in which the name {identifier!r} is defined, continuing with searching all modules', lineno)
         # Examine every module and package in the system and see if 'identifier'
         # names an object in each one.  Again, if more than one object is
         # found, complain.
         target = self.look_for_name(
             # System.objectsOfType now supports passing the type as string.
-            identifier, self.obj.system.objectsOfType('pydoctor.model.Module'), lineno)
+            identifier, self.obj.system.objectsOfType(self.obj.system.Module), lineno)
         if target is not None:
             return target
 

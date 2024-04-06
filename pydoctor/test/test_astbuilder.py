@@ -9,6 +9,7 @@ from pydoctor.stanutils import flatten, html2stan, flatten_text
 from pydoctor.epydoc.markup.epytext import Element, ParsedEpytextDocstring
 from pydoctor.epydoc2stan import ensure_parsed_docstring, format_summary, get_parsed_type
 from pydoctor.test.test_packages import processPackage
+
 from pydoctor.utils import partialclass
 
 from pydoctor.extensions import ExtRegistrar, ModuleVisitorExt
@@ -3517,20 +3518,35 @@ def test_builtins_aliases(systemcls: Type[model.System], capsys:CapSys) -> None:
     ]
     '''
 
+    src2 = '''
+    """
+    Ref to L{unicode}.
+    """
+    '''
+
     system = systemcls()
+    # system.options.verbosity = 6
     builder = system.systemBuilder(system)
-    builder.addModuleString(src, 'top', is_package=True)
+    builder.addModuleString('', 'twisted', is_package=True)
+    builder.addModuleString('', 'python', parent_name='twisted', is_package=True)
+    builder.addModuleString(src, 'compat', parent_name='twisted.python')
+    builder.addModuleString('', 'pack', parent_name='twisted', is_package=True)
+    builder.addModuleString(src2, modname='thing', parent_name='twisted.pack')
     builder.buildModules()
-    top = system.allobjects['top']
-    strio = system.allobjects['top.StringIO']
-    setal = system.allobjects['top.set']
-    listal = system.allobjects['top.myList']
+    compat = system.allobjects['twisted.python.compat']
+    strio = system.allobjects['twisted.python.compat.StringIO']
+    setal = system.allobjects['twisted.python.compat.set']
+    listal = system.allobjects['twisted.python.compat.myList']
     assert isinstance(strio, model.Attribute)
-    assert list(top._localNameToFullName_map) == ['StringIO']
+    assert list(compat._localNameToFullName_map) == ['StringIO']
     assert len(strio.getDefinitions('StringIO', before=10)) == 1
     assert len(strio.getDefinitions('StringIO')) == 2
     assert strio.alias == 'io.StringIO'
     assert setal.alias == 'builtins.set'
-    assert listal.alias == 'top.list'
-    assert list(top.contents)==['unicode', 'StringIO', 'set', 'list', 'xrange', 'myList']
-    assert not capsys.readouterr().out
+    assert listal.alias == 'twisted.python.compat.list'
+    assert list(compat.contents)==['unicode', 'StringIO', 'set', 'list', 'xrange', 'myList']
+    
+    thing = system.allobjects['twisted.pack.thing']
+    thing.docstring_linker.link_xref('unicode', 'unicode', 3)
+    
+    assert capsys.readouterr().out == ''
