@@ -112,14 +112,16 @@ class _EpydocLinker(DocstringLinker):
             ) -> Optional['model.Documentable']:
         self.debug(f'Linker looks for name {name!r} in several candidates...', lineno)
         part0 = name.split('.')[0] if '.' in name else name
-        potential_targets = []
+        potential_targets: list[model.Documentable] = []
         for src in candidates:
             if not src.isNameDefined(part0):
                 self.debug(f'Linker does not find {part0} in {src}, continuing...', lineno)
                 continue
             target = src.contents.get(name) or src.resolveName(name)
             self.debug(f'Linker finds {part0} in {src} resolving name into {target}', lineno)
-            if target is not None and target not in potential_targets:
+            if (target is not None
+                and target not in potential_targets
+                and not any(target in t.aliases for t in potential_targets)):
                 potential_targets.append(target)
         
         if len(potential_targets) == 1:
