@@ -123,7 +123,7 @@ def test_rst_directive_adnomitions() -> None:
 
     expected_html_single_line = """
         <div class="rst-admonition rst-{}">
-        <p class="rst-first rst-admonition-title">{}</p>
+        <p class="rst-admonition-title rst-first">{}</p>
         <p class="rst-last">this is a single line</p>
         </div>
 """
@@ -210,7 +210,7 @@ def test_rst_directive_seealso() -> None:
     html = rst2html(".. seealso:: Hey")
     expected_html = """
         <div class="rst-admonition rst-seealso">
-        <p class="rst-first rst-admonition-title">See Also</p>
+        <p class="rst-admonition-title rst-first">See Also</p>
         <p class="rst-last">Hey</p>
         </div>"""
     assert prettify(html).strip() == prettify(expected_html).strip(), html
