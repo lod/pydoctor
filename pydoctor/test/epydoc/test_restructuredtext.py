@@ -115,7 +115,7 @@ def test_rst_xref_implicit_target() -> None:
 def test_rst_directive_adnomitions() -> None:
     expected_html_multiline="""
         <div class="rst-admonition rst-{}">
-        <p class="rst-first rst-admonition-title">{}</p>
+        <p class="rst-admonition-title rst-first">{}</p>
         <p>this is the first line</p>
         <p class="rst-last">and this is the second line</p>
         </div>
