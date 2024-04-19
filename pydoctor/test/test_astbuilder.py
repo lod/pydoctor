@@ -1394,6 +1394,21 @@ def test_unstring_annotation(systemcls: Type[model.System]) -> None:
     assert ann_str_and_line(mod.contents['b']) == ('str', 3)
     assert ann_str_and_line(mod.contents['c']) == ('list[Thingy]', 4)
 
+@systemcls_param
+def test_upgrade_annotation(systemcls: Type[model.System]) -> None:
+    """Annotations or parts thereof that are strings are parsed and
+    line number information is preserved.
+    """
+    mod = fromText('''\
+    from typing import Union, Optional, List
+    a: Union[str, int]
+    b: Optional[str]
+    c: List[B]
+    ''', systemcls=systemcls)
+    assert ann_str_and_line(mod.contents['a']) == ('str | int', 2)
+    assert ann_str_and_line(mod.contents['b']) == ('str | None', 3)
+    assert ann_str_and_line(mod.contents['c']) == ('list[B]', 4)
+
 @pytest.mark.parametrize('annotation', ("[", "pass", "1 ; 2"))
 @systemcls_param
 def test_bad_string_annotation(
