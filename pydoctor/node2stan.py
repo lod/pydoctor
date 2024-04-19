@@ -169,11 +169,12 @@ class HTMLTranslator(html4css1.HTMLTranslator):
             done = set()
             for key, val in tuple(attr_dict.items()):
                 if key.lower() in ('class', 'id', 'name'):
-                    attr_dict[to_list_names[key.lower()]] = [f'rst-{cls}' if not cls.startswith('rst-') 
+                    list_key = to_list_names[key.lower()]
+                    attr_dict[list_key] = [f'rst-{cls}' if not cls.startswith('rst-') 
                                       else cls for cls in sorted(chain(val.split(), 
-                                        attr_dict.get(to_list_names[key.lower()], ())))]
+                                        attr_dict.get(list_key, ())))]
                     del attr_dict[key]
-                    done.add(key.lower())
+                    done.add(list_key)
             for key, val in tuple(attr_dict.items()):
                 if key.lower() in ('classes', 'ids', 'names') and key.lower() not in done:
                     attr_dict[key] = [f'rst-{cls}' if not cls.startswith('rst-') 
