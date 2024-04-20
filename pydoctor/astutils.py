@@ -735,6 +735,9 @@ class op_util:
                           precedence_data:dict[type[ast.AST]|None, int]=_precedence_data, 
                           type:Callable[[object], type[Any]]=type) -> int:
         """Given an AST node object, returns the precedence.
+
+        :raises KeyError: If the node is not explicitely supported by this function. 
+            Let's remind everyone this is a very legacy piece of code. 
         """
         return precedence_data[type(obj)]
 

@@ -1509,6 +1509,8 @@ def test_expressions_parens(subtests:Any) -> None:
     check_src = partial(check_src_roundtrip, subtests=subtests)
     check_src("1<<(10|1)<<1")
     check_src("int|float|complex|None")
+    check_src("list[int|float|complex|None]")
+    check_src("list[int|float|complex|None, int|None]")
     check_src("1+1")
     check_src("1+2/3")
     check_src("(1+2)/3")
