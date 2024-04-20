@@ -613,38 +613,16 @@ class PyvalColorizer:
     def _colorize_ast_binary_op(self, pyval: ast.BinOp, state: _ColorizerState) -> None:
         with _OperatorDelimiter(self, state, pyval):
             # Colorize first operand
+            mark = state.mark()
             self._colorize(pyval.left, state)
-
             # Colorize operator
-            if isinstance(pyval.op, ast.Sub):
-                self._output('-', None, state)
-            elif isinstance(pyval.op, ast.Add):
-                self._output('+', None, state)
-            elif isinstance(pyval.op, ast.Mult):
-                self._output('*', None, state)
-            elif isinstance(pyval.op, ast.Div):
-                self._output('/', None, state)
-            elif isinstance(pyval.op, ast.FloorDiv):
-                self._output('//', None, state)
-            elif isinstance(pyval.op, ast.Mod):
-                self._output('%', None, state)
-            elif isinstance(pyval.op, ast.Pow):
-                self._output('**', None, state)
-            elif isinstance(pyval.op, ast.LShift):
-                self._output('<<', None, state)
-            elif isinstance(pyval.op, ast.RShift):
-                self._output('>>', None, state)
-            elif isinstance(pyval.op, ast.BitOr):
-                self._output('|', None, state)
-            elif isinstance(pyval.op, ast.BitXor):
-                self._output('^', None, state)
-            elif isinstance(pyval.op, ast.BitAnd):
-                self._output('&', None, state)
-            elif isinstance(pyval.op, ast.MatMult):
-                self._output('@', None, state)
-            else:
+            try:
+                self._output(op_util.get_op_symbol(pyval.op, ' %s '), None, state)
+            except KeyError:
                 state.warnings.append(f"Unknow binary operator: {pyval}")
+                state.restore(mark)
                 self._colorize_ast_generic(pyval, state)
+                return
 
             # Colorize second operand
             self._colorize(pyval.right, state)

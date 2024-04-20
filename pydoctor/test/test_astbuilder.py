@@ -1409,10 +1409,10 @@ def test_upgrade_annotation(systemcls: Type[model.System]) -> None:
     g: Optional[1, 2] # wrong, so we don't process it
     h: Union[list[str]]
     ''', systemcls=systemcls)
-    assert ann_str_and_line(mod.contents['a']) == ('str|int', 2)
-    assert ann_str_and_line(mod.contents['b']) == ('str|None', 3)
+    assert ann_str_and_line(mod.contents['a']) == ('str | int', 2)
+    assert ann_str_and_line(mod.contents['b']) == ('str | None', 3)
     assert ann_str_and_line(mod.contents['c']) == ('list[B]', 4)
-    assert ann_str_and_line(mod.contents['d']) == ('str|int|bytes|None', 5)
+    assert ann_str_and_line(mod.contents['d']) == ('str | int | bytes | None', 5)
     assert ann_str_and_line(mod.contents['e']) == ('str', 6)
     assert ann_str_and_line(mod.contents['f']) == ('str', 7)
     assert ann_str_and_line(mod.contents['g']) == ('Optional[1, 2]', 8)
