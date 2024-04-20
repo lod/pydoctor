@@ -289,8 +289,11 @@ def upgrade_annotation(node: ast.expr, ctx: model.Documentable, section:str='ann
     return _UpgradeDeprecatedAnnotations(ctx).visit(node)
 
 class _UpgradeDeprecatedAnnotations(ast.NodeTransformer):
+    if TYPE_CHECKING:
+        def visit(self, node:ast.AST) -> ast.expr:...
+
     def __init__(self, ctx: model.Documentable) -> None:
-        def _node2fullname(node:ast.expr):
+        def _node2fullname(node:ast.expr) -> str | None:
             return node2fullname(node, ctx)
         self.node2fullname = _node2fullname
 
@@ -325,7 +328,7 @@ class _UpgradeDeprecatedAnnotations(ast.NodeTransformer):
             # tuple of types, includea single element tuple, which is the same
             # as the directly using the type: Union[x] == Union[(x,)] == x
             slice_ = node.slice
-            if isinstance(slice_, ast.Index): # Compat
+            if sys.version_info <= (3,9) and isinstance(slice_, ast.Index): # Compat
                 slice_ = slice_.value
             if isinstance(slice_, ast.Tuple):
                 args = slice_.elts
@@ -339,7 +342,7 @@ class _UpgradeDeprecatedAnnotations(ast.NodeTransformer):
         elif fullName == 'typing.Optional':
             # typing.Optional requires a single type, so we don't process when slice is a tuple.
             slice_ = node.slice
-            if isinstance(slice_, ast.Index): # Compat
+            if sys.version_info <= (3,9) and isinstance(slice_, ast.Index): # Compat
                 slice_ = slice_.value
             if isinstance(slice_, (ast.Attribute, ast.Name, ast.Subscript, ast.BinOp)):
                 return self._union_args_to_bitor([slice_, ast.Constant(value=None)], node)
