@@ -723,7 +723,7 @@ class op_util:
     AST nodes to symbols and precedences.
     """
     @classmethod
-    def get_op_symbol(cls, obj:ast.operator|ast.boolop|ast.cmpop|ast.unaryop, 
+    def get_op_symbol(cls, obj:ast.operator|ast.boolop|ast.cmpop|ast.unaryop,
                       fmt:str='%s', 
                       symbol_data:dict[type[ast.AST]|None, str]=_symbol_data, 
                       type:Callable[[object], type[Any]]=type) -> str:
@@ -731,13 +731,14 @@ class op_util:
         """
         return fmt % symbol_data[type(obj)]
     @classmethod
-    def get_op_precedence(cls, obj:ast.operator|ast.boolop|ast.cmpop|ast.unaryop, 
+    def get_op_precedence(cls, obj:ast.AST, 
                           precedence_data:dict[type[ast.AST]|None, int]=_precedence_data, 
                           type:Callable[[object], type[Any]]=type) -> int:
         """Given an AST node object, returns the precedence.
 
         :raises KeyError: If the node is not explicitely supported by this function. 
-            Let's remind everyone this is a very legacy piece of code. 
+            This is a very legacy piece of code, all calls to L{get_op_precedence} should be
+            guarded in a C{try:... except KeyError:...} statement.
         """
         return precedence_data[type(obj)]
 

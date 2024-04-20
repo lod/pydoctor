@@ -148,17 +148,21 @@ class _OperatorDelimiter:
         
         # avoid needless parenthesis, since we now collect parents for every nodes 
         if isinstance(parent_node, (ast.expr, ast.keyword, ast.comprehension)):
-            precedence = op_util.get_op_precedence(getattr(node, 'op', node))
             try:
-                parent_precedence = op_util.get_op_precedence(getattr(parent_node, 'op', parent_node))
-                if isinstance(getattr(parent_node, 'op', None), ast.Pow) or isinstance(parent_node, ast.BoolOp):
-                    parent_precedence+=1
+                precedence = op_util.get_op_precedence(getattr(node, 'op', node))
             except KeyError:
-                parent_precedence = colorizer.explicit_precedence.get(
-                    node, op_util.Precedence.highest)
-                
-            if precedence < parent_precedence:
                 self.discard = False
+            else:
+                try:
+                    parent_precedence = op_util.get_op_precedence(getattr(parent_node, 'op', parent_node))
+                    if isinstance(getattr(parent_node, 'op', None), ast.Pow) or isinstance(parent_node, ast.BoolOp):
+                        parent_precedence+=1
+                except KeyError:
+                    parent_precedence = colorizer.explicit_precedence.get(
+                        node, op_util.Precedence.highest)
+                    
+                if precedence < parent_precedence:
+                    self.discard = False
 
     def __enter__(self) -> '_OperatorDelimiter':
         return self
