@@ -1639,7 +1639,7 @@ def test_overload(systemcls: Type[model.System], capsys: CapSys) -> None:
     # Confirm decorators retained on overloads, docstring ignored for overloads,
     # and that overloads after the primary function are skipped
     mod = fromText("""
-        from typing import overload, Union
+        from typing import overload
         def dec(fn):
             pass
         @dec

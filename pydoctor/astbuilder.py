@@ -130,8 +130,7 @@ class TypeAliasVisitorExt(extensions.ModuleVisitorExt):
                     # unstring type aliases
                     attr.value = upgrade_annotation(unstring_annotation(
                         # this cast() is safe because _isTypeAlias() return True only if value is not None
-                        cast(ast.expr, attr.value), attr, section='type alias'), 
-                        cast(ast.expr, attr.value), attr, section='type alias')
+                        cast(ast.expr, attr.value), attr, section='type alias'), attr, section='type alias')
                 elif self._isTypeVariable(attr) is True:
                     # TODO: unstring bound argument of type variables
                     attr.kind = model.DocumentableKind.TYPE_VARIABLE
