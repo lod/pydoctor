@@ -736,7 +736,7 @@ class op_util:
                           type:Callable[[object], type[Any]]=type) -> int:
         """Given an AST node object, returns the precedence.
 
-        :raises KeyError: If the node is not explicitely supported by this function. 
+        @raises KeyError: If the node is not explicitely supported by this function. 
             This is a very legacy piece of code, all calls to L{get_op_precedence} should be
             guarded in a C{try:... except KeyError:...} statement.
         """
