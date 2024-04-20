@@ -847,7 +847,7 @@ def test_ast_dict() -> None:
     """
     assert color(extract_expr(ast.parse(dedent("""
     {'1':33, '2':[1,2,3,{7:'oo'*20}]}
-    """)))) == """<document source="pyval_repr">
+    """))), linelen=45) == """<document source="pyval_repr">
     {
     <wbr>
     <inline classes="variable-quote">
@@ -858,7 +858,7 @@ def test_ast_dict() -> None:
         '
     : 
     33
-    ,
+    , 
     <wbr>
     <inline classes="variable-quote">
         '
