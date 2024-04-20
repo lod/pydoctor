@@ -1395,8 +1395,8 @@ def test_unstring_annotation(systemcls: Type[model.System]) -> None:
 
 @systemcls_param
 def test_upgrade_annotation(systemcls: Type[model.System]) -> None:
-    """Annotations or parts thereof that are strings are parsed and
-    line number information is preserved.
+    """Annotations using old style Unions or Optionals are upgraded to python 3.10+ style. 
+    Deprecated aliases like List, Tuple Dict are also translated to their built ins versions.
     """
     mod = fromText('''\
     from typing import Union, Optional, List
