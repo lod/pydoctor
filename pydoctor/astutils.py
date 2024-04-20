@@ -317,6 +317,7 @@ class _UpgradeDeprecatedAnnotations(ast.NodeTransformer):
 
     def visit_Subscript(self, node: ast.Subscript) -> ast.expr:
         node.value = self.visit(node.value)
+        node.slice = self.visit(node.slice)
         fullName = self.node2fullname(node.value)
         
         if fullName == 'typing.Union':
@@ -332,15 +333,15 @@ class _UpgradeDeprecatedAnnotations(ast.NodeTransformer):
                     return self._union_args_to_bitor(args, node)
                 elif len(args) == 1:
                     return args[0]
-            elif isinstance(slice_, (ast.Attribute, ast.Name)):
+            elif isinstance(slice_, (ast.Attribute, ast.Name, ast.Subscript, ast.BinOp)):
                 return slice_
         
         elif fullName == 'typing.Optional':
-            # typing.Optional requires a single type
+            # typing.Optional requires a single type, so we don't process when slice is a tuple.
             slice_ = node.slice
             if isinstance(slice_, ast.Index): # Compat
                 slice_ = slice_.value
-            if isinstance(slice_, (ast.Attribute, ast.Name)):
+            if isinstance(slice_, (ast.Attribute, ast.Name, ast.Subscript, ast.BinOp)):
                 return self._union_args_to_bitor([slice_, ast.Constant(value=None)], node)
 
         return node
