@@ -369,7 +369,7 @@ DEPRECATED_TYPING_ALIAS_BUILTINS = {
         "typing.FrozenSet": 'frozenset',
 }
 
-# These do not beling in the deprecated builtins aliases, so we make sure it doesn't happen.
+# These do not belong in the deprecated builtins aliases, so we make sure it doesn't happen.
 assert 'typing.Union' not in DEPRECATED_TYPING_ALIAS_BUILTINS
 assert 'typing.Optional' not in DEPRECATED_TYPING_ALIAS_BUILTINS
 
