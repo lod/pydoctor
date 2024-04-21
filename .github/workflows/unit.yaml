@@ -55,8 +55,7 @@ jobs:
       with:
         fail_ci_if_error: true
         files: ./coverage.xml
-        name: codecov-unit
-        token: ${{ secrets.CODECOV_TOKEN }}
+        name: unit-${{ matrix.os }}-${{matrix.python-version}}
         verbose: true
 
   release:
