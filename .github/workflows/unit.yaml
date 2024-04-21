@@ -56,6 +56,11 @@ jobs:
         fail_ci_if_error: true
         files: ./coverage.xml
         name: unit-${{ matrix.os }}-${{matrix.python-version}}
+        # Check the secret defined in GHA here
+        # https://github.com/twisted/pydoctor/settings/secrets/actions
+        # And get it from Codecov.io here
+        # https://app.codecov.io/gh/twisted/pydoctor/settings
+        token: ${{ secrets.CODECOV_TOKEN }}
         verbose: true
 
   release:
