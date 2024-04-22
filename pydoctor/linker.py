@@ -131,8 +131,8 @@ class _EpydocLinker(DocstringLinker):
         """
         return self.obj.system.intersphinx.getLink(name)
 
-    def link_to(self, identifier: str, label: "Flattenable", *, _is_annotation: bool = False) -> Tag:
-        if _is_annotation:
+    def link_to(self, identifier: str, label: "Flattenable", *, is_annotation: bool = False) -> Tag:
+        if is_annotation:
             fullID = self.obj.expandAnnotationName(identifier)
         else:
             fullID = self.obj.expandName(identifier)
@@ -274,7 +274,7 @@ class _AnnotationLinker(DocstringLinker):
         with self.switch_context(self._obj):
             if self._module.isNameDefined(target):
                 self.warn_ambiguous_annotation(target)
-            return self._scope_linker.link_to(target, label, _is_annotation=True)
+            return self._scope_linker.link_to(target, label, is_annotation=True)
     
     def link_xref(self, target: str, label: "Flattenable", lineno: int) -> Tag:
         with self.switch_context(self._obj):
