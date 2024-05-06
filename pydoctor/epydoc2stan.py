@@ -1145,7 +1145,7 @@ def populate_constructors_extra_info(cls:model.Class) -> None:
             if i != 0:
                 extra_epytext += ', '
             short_text = format_constructor_short_text(c, cls)
-            extra_epytext += '`%s <%s>`' % (short_text, c.fullName())
+            extra_epytext += 'L{%s <%s>}' % (short_text, c.fullName())
         
         cls.extra_info.append(parse_docstring(
-            cls, extra_epytext, cls, 'restructuredtext', section='constructor extra'))
+            cls, extra_epytext, cls, 'epytext', section='constructor extra'))
