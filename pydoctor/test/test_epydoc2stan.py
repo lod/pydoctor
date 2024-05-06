@@ -496,7 +496,7 @@ def test_constructor_param_on_class(capsys: CapSys) -> None:
     #   an existing parameter but the name in the @param field has a typo
     assert '<td class="fieldArgDesc">Not a constructor parameter.</td>' in html
     captured = capsys.readouterr().out
-    assert captured == '<test>:5: Documented parameter "q" does not exist\n'
+    assert captured == 'test:5: Documented parameter "q" does not exist\n'
 
 
 def test_func_raise_linked() -> None:
