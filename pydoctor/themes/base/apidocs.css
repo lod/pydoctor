@@ -247,7 +247,7 @@ ul ul ul ul ul ul ul {
 /* parameters names in parameters table */
 .fieldTable tr td.fieldArgContainer > .fieldArg {
     float: left;
-    margin-left: -15px;
+    margin-left: -5px;
 }
 
 /* parameters types (in parameters table) */
