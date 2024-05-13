@@ -96,3 +96,24 @@ jobs:
       - name: Publish to PyPI - on tag
         if: startsWith(github.ref, 'refs/tags/')
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # This is a meta-job to simplify PR CI enforcement configuration in GitHub.
+  # Inside the GitHub config UI you only configure this job as required.
+  # All the extra requirements are defined "as code" as part of the `needs`
+  # list for this job.
+  gha-required:
+    name: GHA Required
+    runs-on: ubuntu-latest
+    # The `if` condition is very important.
+    # If not set, the job will be skipped on failing dependencies.
+    if: ${{ !cancelled() }}
+    needs:
+      # This is the list of CI job that we are interested to pass before
+      # a merge.
+      # pypi-publish is skipped since this is only executed for a tag.
+      - unit_tests
+    steps:
+      - name: Require all successes
+        uses: re-actors/alls-green@3a2de129f0713010a71314c74e33c0e3ef90e696
+        with:
+          jobs: ${{ toJSON(needs) }}
