@@ -94,7 +94,9 @@ Read more about reviewing:
 Releasing and publishing a new package
 --------------------------------------
 
-Publishing to PyPI is done via a GitHub Actions workflow that is triggered when a tag is pushed. Version is configured in the ``setup.cfg``. 
+Publishing to PyPI is done via the ``unit.yaml`` GitHub Actions workflow.
+The publish to PyPI is triggered when a tag is pushed.
+Version is configured in the ``setup.cfg``.
 
 The following process ensures correct version management: 
 
