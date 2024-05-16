@@ -8,6 +8,11 @@ on:
   pull_request:
     branches: [ master ]
 
+
+permissions:
+  contents: read
+
+
 jobs:
   unit_tests:
     runs-on: ${{ matrix.os }}
@@ -68,6 +73,12 @@ jobs:
 
     needs: [unit_tests]
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # The `id-token` permission is mandatory for trusted publishing
+      # See https://github.com/pypa/gh-action-pypi-publish
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
