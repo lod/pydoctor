@@ -76,6 +76,11 @@ What's New?
 in development
 ^^^^^^^^^^^^^^
 
+pydoctor 24.3.1
+^^^^^^^^^^^^^^^
+
+* Fix release pipeline.
+
 pydoctor 24.3.0
 ^^^^^^^^^^^^^^^
 
