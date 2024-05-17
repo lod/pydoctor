@@ -73,10 +73,7 @@ You can select a different format using the ``--docformat`` option or the ``__do
 What's New?
 ~~~~~~~~~~~
 
-in development
-^^^^^^^^^^^^^^
-
-pydoctor 24.3.2
+pydoctor 24.3.3
 ^^^^^^^^^^^^^^^
 
 * Fix release pipeline.
